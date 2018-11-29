@@ -71,6 +71,10 @@ enum
 enum ShapeType
     { ShBox, ShPoly, ShArc, ShDot, ShTri, ShTtri, ShAnd, ShOr, ShSides };
 
+// Ordering for the run pop-up menu.
+enum RunType
+    { runJoSIM, runWRspice };
+
 #define    MenuDEVS      "devs"
 #define    MenuSHAPE     "shape"
 #define    MenuWIRE      "wire"

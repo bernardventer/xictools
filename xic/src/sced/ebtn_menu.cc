@@ -91,7 +91,7 @@ namespace {
         MenuFunc  M_Subcircuit;
         MenuFunc  M_ShowTerms;
         MenuFunc  M_SpiceCmd;
-        MenuFunc  M_RunSpice;
+        // MenuFunc  M_RunSpice;
         MenuFunc  M_SpiceDeck;
         MenuFunc  M_ShowOutput;
         MenuFunc  M_SetDoIplot;
@@ -191,8 +191,8 @@ cSced::createEbtnMenu()
         MenuEnt(&M_SpiceCmd, MenuSPCMD, ME_TOGGLE,   CMD_NOTSAFE,
         MenuSPCMD": Send command to WRspice.",                  spcmd_xpm);
     EbtnMenu[btnElecMenuRun] =
-        MenuEnt(&M_RunSpice, MenuRUN,   ME_VANILLA,  CMD_NOTSAFE,
-        MenuRUN": Run the WRspice simulator on the current circuit.", run_xpm);
+        MenuEnt(&M_NoOp, MenuRUN,   ME_VANILLA,  CMD_NOTSAFE,
+        MenuRUN": Run simulator on the current circuit.", run_xpm);
     EbtnMenu[btnElecMenuDeck] =
         MenuEnt(&M_SpiceDeck,MenuDECK,  ME_VANILLA,  CMD_NOTSAFE,
         MenuDECK": Dump a SPICE file of the current circuit.",  deck_xpm);
@@ -524,27 +524,27 @@ ebtn_menu::M_SpiceCmd(CmdDesc *cmd)
 }
 
 
-//-----------------------------------------------------------------------------
-// The RUN command.
-//
-// Menu command for running Spice.  In asynchronous mode, the run button
-// is left active while simulation continues.
-//
-void
-ebtn_menu::M_RunSpice(CmdDesc *cmd)
-{
-    Deselector ds(cmd);
-    if (!XM()->CheckCurMode(Electrical))
-        return;
-    if (!XM()->CheckCurCell(false, false, Electrical))
-        return;
+// //-----------------------------------------------------------------------------
+// // The RUN command.
+// //
+// // Menu command for running Spice.  In asynchronous mode, the run button
+// // is left active while simulation continues.
+// //
+// void
+// ebtn_menu::M_RunSpice(CmdDesc *cmd)
+// {
+//     Deselector ds(cmd);
+//     if (!XM()->CheckCurMode(Electrical))
+//         return;
+//     if (!XM()->CheckCurCell(false, false, Electrical))
+//         return;
 
-    if (cmd && Menu()->GetStatus(cmd->caller)) {
-        if (!SCD()->spif()->RunSpice(cmd))
-            return;
-        ds.clear();
-    }
-}
+//     if (cmd && Menu()->GetStatus(cmd->caller)) {
+//         if (!SCD()->spif()->RunSpice(cmd))
+//             return;
+//         ds.clear();
+//     }
+// }
 
 
 //-----------------------------------------------------------------------------

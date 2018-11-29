@@ -24,7 +24,7 @@ CCFILES = \
   sced_connect.cc sced_dev.cc sced_dots.cc sced_errlog.cc sced_expr.cc \
   sced_fixup.cc sced_ghost.cc sced_modlib.cc sced_mutual.cc \
   sced_netlist.cc sced_nodemap.cc sced_param.cc sced_plot.cc \
-  sced_prplabel.cc sced_prpty.cc sced_setif.cc sced_shapes.cc \
+  sced_prplabel.cc sced_prpty.cc sced_setif.cc sced_shapes.cc sced_run.cc \
   sced_spicein.cc sced_spiceipc.cc sced_spiceout.cc sced_spmap.cc \
   sced_subckt.cc sced_symbolic.cc sced_txtcmds.cc sced_variables.cc
 CCOBJS = $(CCFILES:.cc=.o)

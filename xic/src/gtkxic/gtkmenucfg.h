@@ -77,6 +77,7 @@ private:
     static void vimenu_proc(GtkWidget*, void*);
     static void stmenu_proc(GtkWidget*, void*);
     static void shmenu_proc(GtkWidget*, void*);
+    static void runmenu_proc(GtkWidget*, void*);
     static void top_btnmenu_callback(GtkWidget*, void*);
     static void btnmenu_callback(GtkWidget*, void*);
     static int popup_btn_proc(GtkWidget*, GdkEvent*, void*);

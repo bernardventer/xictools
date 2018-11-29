@@ -388,6 +388,10 @@ public:
     const char *const *shapesList();                                // export
     void addShape(int);                                             // export
 
+    //sced_run.cc
+    const char *const *runList();                                   // export
+    void RunCom(int,CmdDesc*);                                      // export
+
     // sced_spicein.cc
     void dumpDevKeys();
 #define EFS_ALLDEVS 0x1

@@ -874,6 +874,17 @@ gtkMenuConfig::instantiateSideButtonMenus()
                         GTK_SIGNAL_FUNC(popup_btn_proc), menu);
                 }
             }
+            else if (i == btnElecMenuRun) {
+                button = new_pixmap_button(ent->xpm, ent->menutext,
+                    false);
+                GtkWidget *menu = gtkMenu()->new_popup_menu(0,
+                    ScedIf()->runList(), GTK_SIGNAL_FUNC(runmenu_proc), 0);  
+                if (menu) {
+                    gtk_widget_set_name(menu, "RunMenu");                    
+                    gtk_signal_connect(GTK_OBJECT(button), "button-press-event",
+                        GTK_SIGNAL_FUNC(popup_btn_proc), menu);
+                }
+            }
             else {
                 button = new_pixmap_button(ent->xpm, ent->menutext,
                     ent->is_toggle());
@@ -1753,6 +1764,39 @@ gtkMenuConfig::shmenu_proc(GtkWidget *caller, void*)
         if (!strcmp(*s, string))
             break;
     ScedIf()->addShape(i);
+}
+
+// Static function.
+// Run menu handler.
+//
+void
+gtkMenuConfig::runmenu_proc(GtkWidget *caller, void*)
+{
+    if (!ScedIf()->runList())                        // add runList to ScedIf 
+        return;
+    const char *string = Menu()->GetLabel(caller);
+    if (!string || !*string)
+        return;
+    if (XM()->IsDoingHelp()) {
+        int x, y;
+        GdkModifierType mstate;
+        gdk_window_get_pointer(GRX->DefaultFocusWin(), &x, &y, &mstate);
+        if (!(mstate & GDK_SHIFT_MASK)) {
+            char buf[64];
+            sprintf(buf, "run:%s", string);       
+            DSPmainWbag(PopUpHelp(buf))
+            return;
+        }
+    }
+    EV()->InitCallback();
+    CmdDesc cmd;
+    cmd.caller = caller;
+    cmd.wdesc = DSP()->MainWdesc();
+    int i = 0;
+    for (const char *const *s = ScedIf()->runList(); *s; s++, i++)      
+        if (!strcmp(*s, string))
+            break;
+    ScedIf()->RunCom(i,&cmd);                                               
 }
 
 

@@ -154,6 +154,10 @@ public:
     virtual const char *const *shapesList() = 0;
     virtual void addShape(int) = 0;
 
+    //sced_run.cc
+    virtual const char *const *runList() = 0;
+    virtual void RunCom(int,CmdDesc*) = 0;    
+
     // sced_spiceout.cc
     virtual char *getAnalysis(bool) = 0;
     virtual void setAnalysis(const char*) = 0;
@@ -240,6 +244,9 @@ class cScedIfStubs : public cScedIf
 
     const char *const *shapesList() { return (0); }
     void addShape(int) { }
+
+    const char *const *runList() { return (0); }
+    void RunCom(int,CmdDesc*) { }    
 
     char *getAnalysis(bool) { return (0); }
     void setAnalysis(const char*) { }
