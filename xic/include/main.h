@@ -5,6 +5,7 @@
  *                       http://wrcad.com                                 *
  *  Copyright (C) 2017 Whiteley Research Inc., all rights reserved.       *
  *  Author: Stephen R. Whiteley, except as indicated.                     *
+ *  Modified: Bernard H. Venter, November 2018                            *             
  *                                                                        *
  *  As fully as possible recognizing licensing terms and conditions       *
  *  imposed by earlier work from which this work was derived, if any,     *
@@ -48,6 +49,8 @@
 #include "dsp_window.h"
 #include "main_variables.h"
 
+// JOSIM_FLAG
+extern bool JoSIM_Flag;
 
 //
 // Top level include file for Xic application.

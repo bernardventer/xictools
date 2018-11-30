@@ -5,6 +5,7 @@
  *                       http://wrcad.com                                 *
  *  Copyright (C) 2017 Whiteley Research Inc., all rights reserved.       *
  *  Author: Stephen R. Whiteley, except as indicated.                     *
+ *  Modified: Bernard H. Venter, November 2018                            *
  *                                                                        *
  *  As fully as possible recognizing licensing terms and conditions       *
  *  imposed by earlier work from which this work was derived, if any,     *
@@ -45,6 +46,7 @@
 #include "menu.h"
 #include "promptline.h"
 #include "events.h"
+#include "errorlog.h"
 
 
 /***********************************************************************
@@ -58,6 +60,57 @@ namespace {
     void remove_from_list(hyList**, hyList*);
 }
 
+// Electrical menu command prompt for a command to send to WRspice.
+//
+void
+SpiceCMD(CmdDesc *cmd, const char *in )                     
+{
+    Deselector ds(cmd);
+    if (!XM()->CheckCurMode(Electrical))
+        return;
+    if (!XM()->CheckCurCell(true, true, Electrical))
+        return;
+
+    EV()->InitCallback();
+
+    if (cmd && Menu()->GetStatus(cmd->caller)) {            
+        if (!in)
+            return;
+
+        char *s = lstring::copy(in);
+        GCarray<char*> gc_s(s);
+
+        char *retbuf;           // Message returned.
+        char *outbuf;           // Stdout/stderr returned.
+        char *errbuf;           // Error message.
+        unsigned char *databuf; // Command data.
+        if (!SCD()->spif()->DoCmd(s, &retbuf, &outbuf, &errbuf, &databuf)) {
+            // No connection to simulator.
+            if (retbuf) {
+                PL()->ShowPrompt(retbuf);
+                delete [] retbuf;
+            }
+            if (errbuf) {
+                Log()->ErrorLog("spice ipc", errbuf);
+                delete [] errbuf;
+            }
+            return;
+        }
+        if (retbuf) {
+            PL()->ShowPrompt(retbuf);
+            delete [] retbuf;
+        }
+        if (outbuf) {
+            fputs(outbuf, stdout);
+            delete [] outbuf;
+        }
+        if (errbuf) {
+            Log()->ErrorLog("spice ipc", errbuf);
+            delete [] errbuf;
+        }
+        delete [] databuf;
+    }
+}
 
 // Menu command to plot variables.  Pointing at nodes or other hot spots
 // adds terms to plot string shown.  Hitting Enter brings up plot.
@@ -77,6 +130,11 @@ cSced::showOutputExec(CmdDesc *cmd)
     if (CurCell()->cellname() != DSP()->TopCellName()) {
         PL()->ShowPrompt("Pop to top level first.");
         return;
+    }
+    if(JoSIM_Flag){
+    // Load plotting data
+        JoSIM_Flag = 0;
+        SpiceCMD(cmd,"load output");  
     }
 
     connectAll(true);

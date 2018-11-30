@@ -4,7 +4,7 @@
  *                       http://wrcad.com                                 *
  *  Copyright (C) 2017 Whiteley Research Inc., all rights reserved.       *
  *  Author: Stephen R. Whiteley, except as indicated.                     *
- *  Modified: Bernard H. Venter, November 2018                     
+ *  Modified: Bernard H. Venter, November 2018                            *  
  *                                                                        *
  *  As fully as possible recognizing licensing terms and conditions       *
  *  imposed by earlier work from which this work was derived, if any,     *
@@ -78,58 +78,6 @@ const char *const *
 cSced::runList()
 {
     return (run_spice);
-}
-
-// Electrical menu command prompt for a command to send to WRspice.
-//
-void
-SpiceCMD(CmdDesc *cmd, const char *in )                     
-{
-    Deselector ds(cmd);
-    if (!XM()->CheckCurMode(Electrical))
-        return;
-    if (!XM()->CheckCurCell(true, true, Electrical))
-        return;
-
-    EV()->InitCallback();
-
-    if (cmd && Menu()->GetStatus(cmd->caller)) {            
-        if (!in)
-            return;
-
-        char *s = lstring::copy(in);
-        GCarray<char*> gc_s(s);
-
-        char *retbuf;           // Message returned.
-        char *outbuf;           // Stdout/stderr returned.
-        char *errbuf;           // Error message.
-        unsigned char *databuf; // Command data.
-        if (!SCD()->spif()->DoCmd(s, &retbuf, &outbuf, &errbuf, &databuf)) {
-            // No connection to simulator.
-            if (retbuf) {
-                PL()->ShowPrompt(retbuf);
-                delete [] retbuf;
-            }
-            if (errbuf) {
-                Log()->ErrorLog("spice ipc", errbuf);
-                delete [] errbuf;
-            }
-            return;
-        }
-        if (retbuf) {
-            PL()->ShowPrompt(retbuf);
-            delete [] retbuf;
-        }
-        if (outbuf) {
-            fputs(outbuf, stdout);
-            delete [] outbuf;
-        }
-        if (errbuf) {
-            Log()->ErrorLog("spice ipc", errbuf);
-            delete [] errbuf;
-        }
-        delete [] databuf;
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -248,7 +196,7 @@ runJoSIMExec(CmdDesc* cmd)
     }
 
     // Load plotting data
-    SpiceCMD(cmd,"load output");
+    JoSIM_Flag = 1;
  
     // Fork process to run Josim
     int cpid = fork();

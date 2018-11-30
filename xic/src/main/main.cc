@@ -5,6 +5,7 @@
  *                       http://wrcad.com                                 *
  *  Copyright (C) 2017 Whiteley Research Inc., all rights reserved.       *
  *  Author: Stephen R. Whiteley, except as indicated.                     *
+ *  Modified: Bernard H. Venter, November 2018                            *
  *                                                                        *
  *  As fully as possible recognizing licensing terms and conditions       *
  *  imposed by earlier work from which this work was derived, if any,     *
@@ -73,6 +74,7 @@
 namespace { void timer_proc(); }
 
 cMain *cMain::instancePtr = 0;
+bool JoSIM_Flag = 0;
 
 cMain::cMain()
 {
