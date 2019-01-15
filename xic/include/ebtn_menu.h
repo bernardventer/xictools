@@ -73,7 +73,7 @@ enum ShapeType
 
 // Ordering for the run pop-up menu.
 enum RunType
-    { runJoSIM, runWRspice };
+    { runJoSIM, runWRspice, runInductEx }; //{ runJoSIM, runWRspice, runInductEx }; ADDED button
 
 #define    MenuDEVS      "devs"
 #define    MenuSHAPE     "shape"

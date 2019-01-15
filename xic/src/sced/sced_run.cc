@@ -46,6 +46,20 @@
 #include "ebtn_menu.h"         
 #include "promptline.h"         
 
+#include "cvrt.h"
+#include "editif.h"
+#include "fio.h"
+#include "fio_gdsii.h"
+#include "fio_alias.h"
+#include "cd_digest.h"
+#include "scedif.h"
+#include "dsp_layer.h"
+#include "cvrt_menu.h"
+#include "tech.h"
+#include "layertab.h"
+#include "tech_kwords.h"
+#include "miscutil/filestat.h"
+#include <sys/stat.h>
 
 #include "sced_spiceipc.h"      
 #include "dsp_tkif.h"           
@@ -69,6 +83,7 @@ namespace {
     const char * run_spice[] = {
         "JoSIM",
         "WRSpice",
+        //"InductEx",
         0
     };
 }
@@ -79,6 +94,83 @@ cSced::runList()
 {
     return (run_spice);
 }
+
+namespace {
+    // Return a token to use as the "cellname" in a filename.
+    //
+    void
+    def_cellname(char *buf, const stringlist *list)
+    {
+        if (Cvt()->WriteFilename())
+            strcpy(buf, Cvt()->WriteFilename());
+        else {
+            if (!strcmp(list->string, FIO_CUR_SYMTAB))
+                strcpy(buf, "symtab_cells");
+            else
+                strcpy(buf, list->string);
+            char *s = strrchr(buf,'.');
+            if (s && s != buf)
+                *s = '\0';
+            if (FIO()->IsStripForExport())
+                strcat(buf, ".phys");
+        }
+    }
+
+
+    // creates and dumps a GDSII file  of the current circiut to be used
+    // in InductEx. the function returns the address of the GDSII file 
+    // that was created.  
+    //
+    char *
+    outGDS( bool allcells, void*)
+    {
+        // // Clear pushed filename and AOI params, if any.
+        // if (Cvt()->WriteFilename()) {
+        //     Cvt()->SetWriteFilename(0);
+        //     Cvt()->SetupWriteCut(0);
+        // }
+
+        stringlist *namelist = new stringlist(lstring::copy(
+            allcells ? FIO_CUR_SYMTAB : Tstring(DSP()->CurCellName())), 0);
+        GCdestroy<stringlist> gc_namelist(namelist);
+
+        CDcbin cbin(DSP()->CurCellName());
+        if (!cbin.isSubcell())
+            EditIf()->assignGlobalProperties(&cbin);
+
+        FIOcvtPrms prms;
+        prms.set_scale(FIO()->WriteScale());
+        prms.set_alias_mask(CVAL_CASE | CVAL_PFSF | CVAL_FILE);
+        if (!allcells && FIO()->OutFlatten()) {
+            prms.set_flatten(true);
+            if (FIO()->OutUseWindow()) {
+                prms.set_use_window(true);
+                prms.set_window(FIO()->OutWindow());
+                prms.set_clip(FIO()->OutClip());
+            }
+        }
+
+        char buf[256];
+        def_cellname(buf, namelist);
+        strcat(buf, "_new.gds");
+        PL()->ErasePrompt();                                      
+
+        // save and get address of file
+        char *s = pathlist::expand_path(buf, true, true);
+        s = lstring::strip_space(s);
+        pathlist::path_canon(s);
+        char *gdsname = pathlist::expand_path(s, false, true);
+
+        prms.set_destination(gdsname, Fgds);
+        FIO()->ConvertToGds(namelist, &prms);
+        return(gdsname);
+    }
+}
+
+//
+//-----------------------------------------------------------------------------
+
+
 
 //-----------------------------------------------------------------------------
 // The RUN WRspice command.
@@ -105,7 +197,7 @@ void runWRspiceExec(CmdDesc* cmd)
 // The RUN JoSIM command.
 //
 // Submenu command for running JoSIM. The circuit file is dumped in the current 
-// directory and sumilated using JoSIM. The location of JoSIM is selected via the
+// directory and simulated using JoSIM. The location of JoSIM is selected via the
 // open dialog.
 
 void
@@ -136,7 +228,7 @@ runJoSIMExec(CmdDesc* cmd)
         }
         delete [] s;
     }
-
+    PL()->ErasePrompt();
     char tbuf[256];
     char jbuf[256];
     strcpy(tbuf, Tstring(DSP()->CurCellName()));
@@ -150,13 +242,18 @@ runJoSIMExec(CmdDesc* cmd)
     else
         strcat(tbuf, ".cir");
 
-    char *in = XM()->SaveFileDlg("New SPICE file name? ", tbuf);
-    if (!in || !*in) {
-        PL()->ErasePrompt();
-        return;
-    }
+    char *in = pathlist::expand_path(tbuf, true, true);
+    in = lstring::strip_space(in);
+    pathlist::path_canon(in);
+
+    // char *in = XM()->SaveFileDlg("New SPICE file name? ", tbuf);
+    // if (!in || !*in) {
+    //     PL()->ErasePrompt();
+    //     return;
+    // }
     char *filename = pathlist::expand_path(in, false, true);
     SCD()->dumpSpiceFile(filename);
+    PL()->ShowPrompt("DONE");
 
     const char *JoSim_file_linux = "JoSIM_linux_RELEASE_NONE";
     const char *JoSim_file_mac = "JoSIM_mac_RELEASE_NONE";
@@ -212,6 +309,109 @@ runJoSIMExec(CmdDesc* cmd)
 }
 RunType Run_option();
 
+//-----------------------------------------------------------------------------
+// The RUN InductEx command  W.I.P.
+//
+// Submenu command for running InductEx. The circuit file and GDSII file is dumped  
+// in the current directory. They are simulated using InductEx. The location of Inductex
+// is the default as specified for windows.
+
+void runInductExec(CmdDesc* cmd)
+{
+    if (!XM()->CheckCurMode(Electrical))
+        return;
+    if (!XM()->CheckCurCell(false, false, Electrical))
+        return;
+    if (CurCell()->isEmpty()) {
+        PL()->ShowPrompt("No electrical data found in current cell.");
+        return;
+    }
+    // dump spice netlist and load file name and address
+    if (DSP()->CurCellName() == DSP()->TopCellName()) {
+        char *s = SCD()->getAnalysis(false);
+        if (!s || strcmp(s, "run")) {
+            char *in =
+                PL()->EditPrompt("Enter optional analysis command: ", s);
+            if (!in) {
+                PL()->ErasePrompt();
+                delete [] s;
+                return;
+            }
+            while (isspace(*in))
+                in++;
+            if (*in)
+                SCD()->setAnalysis(in);
+        }
+        delete [] s;
+    }
+
+    char tbuf[256];
+    strcpy(tbuf, Tstring(DSP()->CurCellName()));
+    char *s;
+    if ((s = strrchr(tbuf, '.')) != 0) {
+        if (!strcmp(s+1, "cir"))
+            strcpy(s+1, "deck");
+        else
+            strcpy(s+1, "cir");
+    }
+    else
+        strcat(tbuf, ".cir");
+
+    char *in = pathlist::expand_path(tbuf, true, true);
+    in = lstring::strip_space(in);
+    pathlist::path_canon(in);
+
+    char *cirfile = pathlist::expand_path(in, false, true);
+    SCD()->dumpSpiceFile(cirfile);
+
+    // dump GDSII file
+
+    if (cmd && Menu()->GetStatus(cmd->caller)) {
+        if (!DSP()->CurCellName()) {
+            PL()->ShowPrompt("No current cell!");
+            if (cmd)
+                Menu()->Deselect(cmd->caller);
+            return;
+        }
+        CDvdb()->setVariable(VA_PCellKeepSubMasters, "");   // change the keep pcell option
+        char * GDSloc = outGDS(0, 0);                       // no variables need can remove
+        CDvdb()->clearVariable(VA_PCellKeepSubMasters);     // clean up pcell option
+        
+        // check if inductex is in default location
+        const char *inductEXE = "inductex";
+        char *inInductex = pathlist::expand_path("/utils/inductex/bin", false, true);
+        bool Inductex_check = pathlist::find_path_file(inductEXE, "/utils/inductex/bin",NULL,true);
+        char *Induct = pathlist::expand_path("/utils/inductex/bin/inductex", false, true);
+
+        // delete test function
+        // char *cirTEST = pathlist::expand_path("/home/bernard/Workspace/XIC_test/LSmitll_SFQDC1_idx.cir", false, true);
+        // delete test function
+
+        if(!(Inductex_check)){
+            PL()->ShowPromptV("ERROR: InductEx Not Found");
+            Errs()->sys_error("ERROR: InductEx Not Found");
+            return;
+        }   
+
+        PL()->ErasePrompt();
+        PL()->ShowPrompt("Simulating in cmd terminal window");
+
+        // Fork process to run Inductex
+        int cpid = fork();
+        if (cpid == -1) {
+            Errs()->sys_error("init_local: fork");
+            return;
+        }
+        if (!cpid) {
+            execl(Induct,Induct,GDSloc, "-l", "inductexLDF.ldf","-fh","-n", "LSmitll_SFQDC1_idx.cir", (char *) 0); // replace cirTEST with cirfile and select ldf file option?
+            Errs()->sys_error("Inductex execution failed");
+            return;
+        }   
+    else   
+        return;
+    }   
+}
+
 // This is called in response to the pull-down menu of run templates.
 //
 void
@@ -223,6 +423,9 @@ cSced::RunCom(int Run_option,CmdDesc* cmd)
         break;
     case runWRspice:
         runWRspiceExec(cmd);                                                   
+        break;
+    case runInductEx:
+        runInductExec(cmd);                                                   
         break;
     default:
         if (!XM()->CheckCurMode(Electrical))
