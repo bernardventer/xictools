@@ -72,18 +72,22 @@
 #include <arpa/inet.h>
 #endif
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
 // The pull-down menu entries.
 // These keywords are the menu labels, and are also used as help system
 // tags "run_spice:xxx".
 // The order MUST match the RunType enum!
 //
 
-
 namespace {
     const char * run_spice[] = {
         "JoSIM",
         "WRSpice",
-        //"InductEx",
+        "InductEx",
         0
     };
 }
@@ -96,7 +100,7 @@ cSced::runList()
 }
 
 namespace {
-    // Return a token to use as the "cellname" in a filename.
+    // Return a tokens to use as the "cellname" in a filename.
     //
     void
     def_cellname(char *buf, const stringlist *list)
@@ -169,6 +173,212 @@ namespace {
 
 //
 //-----------------------------------------------------------------------------
+
+
+// The function parces a line from the XIC circuit file into one InductEX
+// can use. The .param is removed and the calculated values are added inline 
+// with the component name and coordinates.
+//
+void
+Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT ){  
+    char *tokens = strtok (inLine," =\n");
+    char comp ='o';
+    char Hold[20];
+    
+    // JJ or Inductor
+    if(!(strncmp(inLine,"B",1))){               // for JJ
+        tokens[0] = 'J'; 
+        comp = 'B';
+    }
+    else if (!(strncmp(inLine,"L",1))){         // for inductor
+        comp = 'L';
+    }          
+    strcpy(newLine,tokens);          
+
+    //Get the coords
+    for(int i = 0; i < 2 ; ++i){ 
+        strcat(newLine," ");
+        tokens = strtok (NULL, " =\n");
+        strcat(newLine,tokens);
+    }
+    strcat(newLine," ");  
+    tokens = strtok (NULL, " =\n"); 
+
+    //Get param value name
+    if (comp == 'B') { 
+        tokens = strtok (NULL, " =\n");
+        tokens = strtok (NULL, " =\n");
+        tokens = strtok (NULL, " =\n");
+        strcpy(Hold,tokens);             
+    } 
+    else if ((comp == 'L')&&(strstr(tokens, "p") == NULL)){ 
+        strcpy(Hold,tokens);             
+    }
+    
+    if (strstr(tokens, "p") != NULL) {
+        tokens[strlen(tokens)-1] = '0';     //removes the p and replace it with a 0
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
+
+    else if(strstr(INbuffer,Hold)){ 
+        strcat(Hold,"=");                   //last caracter must be =
+        char *ParLine = strstr(INbuffer,Hold);
+        char Pname[20];
+        char Pval[30];
+        char Pwr[4];
+        double Cval; 
+
+        if(comp == 'L'){ //        
+            sscanf( ParLine, "%[^=]=%[^e]e%[^*]*", Pname, Pval, Pwr); 
+            int power = atoi(Pwr); 
+            Cval = atof(Pval);
+            Cval =  Cval * pow(10,(12+power)); 
+        }
+        else if(comp == 'B'){
+            sscanf( ParLine, "%[^=]=%[^*]*", Pname, Pval);
+            Cval = atof(Pval);
+            Cval = Cval * 100;            
+        } 
+        gcvt(Cval,10,tokens);      
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
+    fputs(newLine,OUT);
+    //delete [] Pname;
+    //delete [] Pval;
+    //delete [] tokens;
+    //delete [] ParLine;
+    return;
+}
+
+// load the data from the XIC generated circuit file to the buffer.
+//
+char 
+*LoadBuf(char * dataIN){
+    FILE *Din = fopen (dataIN , "r");
+    if (dataIN==NULL){
+        PL()->ShowPromptV("ERROR: Circuit file not read");
+        Errs()->sys_error("ERROR: Circuit file not read");
+        return 0;
+    }
+
+    // find file size
+    fseek(Din , 0 , SEEK_END);
+    size_t Csize = ftell(Din);
+    rewind(Din);
+
+    // alocate memory and store data in buffer
+    char * CIRbuf = (char*) malloc(sizeof(char)*Csize);
+    if (CIRbuf == NULL){
+        PL()->ShowPromptV("ERROR: No data to read");
+        Errs()->sys_error("ERROR: No data to read");
+        return 0;  
+    }
+
+    //read data    
+    size_t CIRdata = fread (CIRbuf,1,Csize,Din);
+    if(CIRdata != Csize){
+        PL()->ShowPromptV("ERROR: Circuit file is empty");
+        Errs()->sys_error("ERROR: Circuit file is empty");
+        return 0;
+    }
+
+    fclose (Din);
+    return (char *) CIRbuf;
+} 
+
+// The function create port for selected components.
+//
+void 
+Port_val(int portNumber, const char * PortName,char *NewLine, char *fileLine,FILE *OUT){
+    char PortNum [10];
+    sprintf(PortNum, "%d", portNumber); 
+    strcpy(NewLine,PortName);
+    strcat(NewLine,PortNum);
+    portNumber++;                     
+    strcat(NewLine," ");
+    char *seg = strtok (fileLine," ");
+    seg = strtok (NULL, " ");
+    if(!(strncmp(PortName,"PB",2))){
+        seg = strtok (NULL, " ");    // skip coord using IB
+    }
+    strcat(NewLine,seg);
+    strcat(NewLine," ");
+    strcat(NewLine,"0");           
+    strcat(NewLine,"\n");
+    fputs(NewLine,OUT);
+    //delete [] seg;
+    return;
+}
+// The function process the XIC generated circuit file and 
+// write it into a format acceptable by InductEX
+//
+void 
+inductexOUT(char * cirIN, char * cirOUT)
+{
+    char fileString [256];
+    char ParLine [256];
+    char New_line[256];
+    int pn = 1;                                     //port count
+    int rn = 1;                                     //resistor port count
+    int ib = 1;                                     // curretnt port count
+
+    char * INbuff = LoadBuf(cirIN);
+    FILE *pOUT = fopen (cirOUT , "w");  
+    FILE *pIN = fopen (cirIN , "r");   
+
+    while ( fgets (fileString , 256 , pIN) != NULL ){
+        if(!(strncmp(fileString,"*",1))){           
+            fputs(fileString,pOUT);  
+        }
+        if(!(strncmp(fileString,".",1))){           
+            // do Nothing,avoids false positives from param
+        }
+        else if(!(strncmp(fileString,"B",1))){                         
+            Param_val(fileString, INbuff,New_line, pOUT); 
+        
+        }
+        else if(!(strncmp(fileString,"IB",1))){                         
+            Port_val(ib,"PB",New_line,fileString,pOUT);
+            ib++;
+        }
+
+        // clk is named first and is the first port always.
+        else if (strstr(fileString, "CLK") != NULL){ // ether one but not both??
+            strcpy(ParLine,fileString);
+            Param_val(fileString, INbuff,New_line, pOUT); 
+            Port_val(pn,"P",New_line,ParLine,pOUT);
+            pn++;                           
+        }
+        else if ((strstr(fileString, " IN ") != NULL) || (strstr(fileString, "IN_") != NULL)){       
+            strcpy(ParLine,fileString);
+            Param_val(fileString, INbuff,New_line, pOUT); 
+            Port_val(pn,"P",New_line,ParLine,pOUT);
+            pn++;                           
+        }
+        else if (strstr(fileString, "RP") != NULL){       
+            Port_val(rn,"PR",New_line,fileString,pOUT);
+            rn++;
+        }
+        else if ((strstr(fileString, " OUT ") != NULL) || (strstr(fileString, "OUT_") != NULL)){       
+            Port_val(pn,"P",New_line,fileString,pOUT); 
+            pn++; 
+        }
+        else if (!(strncmp(fileString,"L",1))){       
+            if (strstr(fileString, "LRB") == NULL){      
+                Param_val(fileString, INbuff,New_line, pOUT);
+            }
+        }
+    }
+    fclose (pIN);
+    fclose (pOUT);
+    //delete [] INbuff;
+    free (INbuff);
+    return;
+}
+
+
 
 
 
@@ -246,11 +456,6 @@ runJoSIMExec(CmdDesc* cmd)
     in = lstring::strip_space(in);
     pathlist::path_canon(in);
 
-    // char *in = XM()->SaveFileDlg("New SPICE file name? ", tbuf);
-    // if (!in || !*in) {
-    //     PL()->ErasePrompt();
-    //     return;
-    // }
     char *filename = pathlist::expand_path(in, false, true);
     SCD()->dumpSpiceFile(filename);
     PL()->ShowPrompt("DONE");
@@ -265,6 +470,8 @@ runJoSIMExec(CmdDesc* cmd)
     bool JoSIM_check_mac = pathlist::find_path_file(JoSim_file_mac, "/usr/local/bin",NULL,true);
     bool JoSIM_check_win = pathlist::find_path_file(JoSim_file_win, "/usr/local/bin",NULL,true);
 
+    //check path
+    bool inJoSIMlib = false;
     // Choose the location of JoSIM
     if(JoSIM_check_linux)
         inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM_linux_RELEASE_NONE", false, true);
@@ -272,14 +479,15 @@ runJoSIMExec(CmdDesc* cmd)
         inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM_mac_RELEASE_NONE", false, true);
     else if(JoSIM_check_win)
         inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM_win_RELEASE_NONE", false, true);
-    else {  
-        strcpy (jbuf, "");
-        char *inJo = XM()->OpenFileDlg("Open JoSIM Install Location: ", jbuf); 
-        inJoSIM = pathlist::expand_path(inJo, false, true);
-        if (!inJoSIM || !*inJoSIM) {
-            PL()->ErasePrompt();
-            return;
-        }
+    else {
+        inJoSIMlib = true;
+        // strcpy (jbuf, "");
+        // char *inJo = XM()->OpenFileDlg("Open JoSIM Install Location: ", jbuf); 
+        // inJoSIM = pathlist::expand_path(inJo, false, true);
+        // if (!inJoSIM || !*inJoSIM) {
+        //     PL()->ErasePrompt();
+        //     return;
+        // }
     }
 
     // Test if JoSIM has been selected
@@ -302,7 +510,11 @@ runJoSIMExec(CmdDesc* cmd)
         return;
     }
     if (!cpid) {
-        execl(inJoSIM,inJoSIM,"-c", "1", "-o","output", filename, (char *) 0); 
+        if(inJoSIMlib){ 
+            execlp("josim","josim","-c", "1", "-o","output", filename, (char *) 0);
+        }
+        else      
+            execl(inJoSIM,inJoSIM,"-c", "1", "-o","output", filename, (char *) 0); 
         Errs()->sys_error("JoSIM execution failed");
         return;
     }
@@ -310,7 +522,7 @@ runJoSIMExec(CmdDesc* cmd)
 RunType Run_option();
 
 //-----------------------------------------------------------------------------
-// The RUN InductEx command  W.I.P.
+// The RUN InductEx command  
 //
 // Submenu command for running InductEx. The circuit file and GDSII file is dumped  
 // in the current directory. They are simulated using InductEx. The location of Inductex
@@ -363,9 +575,29 @@ void runInductExec(CmdDesc* cmd)
 
     char *cirfile = pathlist::expand_path(in, false, true);
     SCD()->dumpSpiceFile(cirfile);
+    //delete [] s
 
+    // create path for IDX output file 
+    char obuf[256];
+    strcpy(obuf, Tstring(DSP()->CurCellName()));
+    char *sc;
+    if ((sc = strrchr(obuf, '.')) != 0) {
+        if (!strcmp(sc, "_idx.cir"))
+            strcpy(sc, "_idx.deck");
+        else
+            strcpy(sc, "_idx.cir");
+    }
+    else
+        strcat(obuf, "_idx.cir");
+
+    char *outC = pathlist::expand_path(obuf, true, true);
+    outC = lstring::strip_space(outC);
+    pathlist::path_canon(outC);
+
+    char *cirIDX = pathlist::expand_path(outC, false, true);
+    //delete [] sc
+    
     // dump GDSII file
-
     if (cmd && Menu()->GetStatus(cmd->caller)) {
         if (!DSP()->CurCellName()) {
             PL()->ShowPrompt("No current cell!");
@@ -379,19 +611,45 @@ void runInductExec(CmdDesc* cmd)
         
         // check if inductex is in default location
         const char *inductEXE = "inductex";
-        char *inInductex = pathlist::expand_path("/utils/inductex/bin", false, true);
         bool Inductex_check = pathlist::find_path_file(inductEXE, "/utils/inductex/bin",NULL,true);
         char *Induct = pathlist::expand_path("/utils/inductex/bin/inductex", false, true);
+        // bool Inductex_check = pathlist::find_path_file(inductEXE, "/usr/local/bin",NULL,true);
+        // char *Induct = pathlist::expand_path("/usr/local/bin/inductex/bin", false, true);
 
-        // delete test function
-        // char *cirTEST = pathlist::expand_path("/home/bernard/Workspace/XIC_test/LSmitll_SFQDC1_idx.cir", false, true);
-        // delete test function
+        bool inIDXlib = false; // look for in PATH
 
         if(!(Inductex_check)){
-            PL()->ShowPromptV("ERROR: InductEx Not Found");
-            Errs()->sys_error("ERROR: InductEx Not Found");
+            inIDXlib = true;
+            // PL()->ShowPromptV("ERROR: InductEx Not Found");
+            // Errs()->sys_error("ERROR: InductEx Not Found");
+            // return;
+        }
+        // open ldf file
+        char Ibuf[256];
+        strcpy (Ibuf, "");
+        char *inI = XM()->OpenFileDlg("Open InductEx LDF File: ", Ibuf); 
+        char *inIDX = pathlist::expand_path(inI, false, true);
+        if (!strstr(inIDX, ".ldf")){
+            PL()->ShowPromptV("ERROR: LDF File Not Found");
+            Errs()->sys_error("ERROR: LDF File Not Found");
+            return; 
+        }
+        // delete inI [];
+
+        const char *methodIDX;
+        char * met = PL()->EditPrompt("Choose Numerical Engine. TetraHenry-> t and FFH-> f : ", "");
+        met = lstring::strip_space(met);
+        if (met && (*met == 'f' || *met == 'F')){
+            methodIDX = "-fh";
+        }
+        else if (met && (*met == 't' || *met == 'T')){
+            methodIDX = "-th";
+        }
+        else{
+            PL()->ShowPromptV("ERROR: Choose valid numerical engine");
+            Errs()->sys_error("ERROR: Choose valid numerical engine");
             return;
-        }   
+        }
 
         PL()->ErasePrompt();
         PL()->ShowPrompt("Simulating in cmd terminal window");
@@ -403,8 +661,13 @@ void runInductExec(CmdDesc* cmd)
             return;
         }
         if (!cpid) {
-            execl(Induct,Induct,GDSloc, "-l", "inductexLDF.ldf","-fh","-n", "LSmitll_SFQDC1_idx.cir", (char *) 0); // replace cirTEST with cirfile and select ldf file option?
-            Errs()->sys_error("Inductex execution failed");
+            inductexOUT(cirfile,cirIDX); //run cir to inductex cir
+            if(inIDXlib){
+                execlp("inductex","inductex",GDSloc, "-l", inIDX,"-i", "IDXout.inp",methodIDX,"-n", cirIDX, (char *) 0); // replace cirTEST with cirfile and select ldf file option? //"mitll_sfq5ee_set1.ldf"
+            }
+            else
+                execl(Induct,Induct,GDSloc, "-l", inIDX,"-i", "IDXout.inp",methodIDX,"-n", cirIDX, (char *) 0); // replace cirTEST with cirfile and select ldf file option? //"mitll_sfq5ee_set1.ldf"
+            Errs()->sys_error("Inductex Execution Failed");
             return;
         }   
     else   
@@ -437,6 +700,4 @@ cSced::RunCom(int Run_option,CmdDesc* cmd)
         break;
     }
 }
-
-
 
