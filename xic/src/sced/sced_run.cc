@@ -613,8 +613,6 @@ void runInductExec(CmdDesc* cmd)
         const char *inductEXE = "inductex";
         bool Inductex_check = pathlist::find_path_file(inductEXE, "/utils/inductex/bin",NULL,true);
         char *Induct = pathlist::expand_path("/utils/inductex/bin/inductex", false, true);
-        // bool Inductex_check = pathlist::find_path_file(inductEXE, "/usr/local/bin",NULL,true);
-        // char *Induct = pathlist::expand_path("/usr/local/bin/inductex/bin", false, true);
 
         bool inIDXlib = false; // look for in PATH
 
