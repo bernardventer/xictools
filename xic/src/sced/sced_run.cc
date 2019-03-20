@@ -3,8 +3,8 @@
  *  Distributed by Whiteley Research Inc., Sunnyvale, California, USA     *
  *                       http://wrcad.com                                 *
  *  Copyright (C) 2017 Whiteley Research Inc., all rights reserved.       *
+ *  Author: Bernard H. Venter, March 2019                                 *
  *  Author: Stephen R. Whiteley, except as indicated.                     *
- *  Modified: Bernard H. Venter, November 2018                            *  
  *                                                                        *
  *  As fully as possible recognizing licensing terms and conditions       *
  *  imposed by earlier work from which this work was derived, if any,     *
