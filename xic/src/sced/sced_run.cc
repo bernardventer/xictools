@@ -494,7 +494,7 @@ runJoSIMExec(CmdDesc* cmd)
     const char *loc_linux = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_linux);
     const char *loc_mac = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_mac);
     const char *loc_win = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_win);
-    if ((strcmp(JoSim_file_linux, loc_linux) != 0) && (strcmp(JoSim_file_mac, loc_mac) != 0) && (strcmp(JoSim_file_win, loc_win) != 0)){
+    if ((strcmp(JoSim_file_linux, loc_linux) != 0) && (strcmp(JoSim_file_mac, loc_mac) != 0) && (strcmp(JoSim_file_win, loc_win) != 0)&&!(inJoSIMlib)){
         PL()->ShowPromptV("ERROR: JOSIM Not Found");
         Errs()->sys_error("ERROR: JOSIM Not Found");
         return;
