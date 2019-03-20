@@ -49,8 +49,9 @@ Authors: 1987 Wayne A. Christopher
 #include "input.h"
 #include "inpptree.h"
 #include "circuit.h"
-#include "frontend.h"
-#include "ftedata.h"
+#include "simulator.h"
+#include "datavec.h"
+#include "output.h"
 #include "misc.h"
 #include "miscutil/random.h"
 #include "miscutil/errorrec.h"
@@ -791,8 +792,8 @@ IFparseNode::parse_if_tranfunc(IFparseNode *p, const char *string, int *error)
             *error = E_BADPARM;
             return (true);
         }
-        Parser P = Parser(new PTelement[STACKSIZE],
-            PRSR_NODEHACK | PRSR_USRSTR);
+        PTelement elements[STACKSIZE];
+        Parser P = Parser(elements, PRSR_NODEHACK | PRSR_USRSTR);
         P.init(tt, p->p_tree);
         p->p_left = P.parse();
         if (!p->p_left || !check(p->p_left)) {
@@ -1945,7 +1946,7 @@ IFpwlData::parse(const char *args, IFparseNode *p, int *error)
 
                 char *tok = IP.getTok(&ts, true);
                 if (tok) {
-                    sDataVec *d1 = Sp.VecGet(tok, p->p_tree->ckt());
+                    sDataVec *d1 = OP.vecGet(tok, p->p_tree->ckt());
                     if (!d1) {
                         Errs()->add_error("Unknown vector %s.", tok);
                         delete [] tok;
@@ -1960,7 +1961,7 @@ IFpwlData::parse(const char *args, IFparseNode *p, int *error)
                     if (tok) {
                         if (!lstring::cieq(tok, "r") &&
                                 !lstring::cieq(tok, "td")) {
-                            d2 = Sp.VecGet(tok, p->p_tree->ckt());
+                            d2 = OP.vecGet(tok, p->p_tree->ckt());
                             if (!d2) {
                                 Errs()->add_error("Unknown vector %s.", tok);
                                 delete [] tok;
@@ -3458,7 +3459,7 @@ IFinterpData::parse(const char *args, IFparseNode *p, int *error)
 
     sDataVec *d = 0;
     if (*buf) {
-        d = Sp.VecGet(buf, p->p_tree->ckt());
+        d = OP.vecGet(buf, p->p_tree->ckt());
         if (!d)
             *error = E_NOVEC;
         else if (d->iscomplex()) {
@@ -3472,7 +3473,7 @@ IFinterpData::parse(const char *args, IFparseNode *p, int *error)
     if (d) {
         scale = d->scale();
         if (!scale)
-            scale = Sp.CurPlot()->scale();
+            scale = OP.curPlot()->scale();
         if (!scale) {
             d = 0;
             Errs()->add_error("no scale for interp function");

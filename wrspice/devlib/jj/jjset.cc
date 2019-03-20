@@ -76,8 +76,7 @@ Author: 1992 Stephen R. Whiteley
 
 #define VmMin   0.008       // Min Vm V
 #define VmMax   0.1         // Max Vm V
-#define IcRmin  1.5e-3      // Min IcR V
-#define IcRmax  1.9e-3      // Max IcR V
+#define IcRmin  0.5e-3      // Min IcR V
 #define Ic      1e-3        // Assumed Ic of reference, A
 #define IcMin   1e-9        // Min reference Ic, A
 #define IcMax   1e-1        // Max referenct Ic, A
@@ -95,9 +94,10 @@ Author: 1992 Stephen R. Whiteley
 #define CCsens  1e-2        // Assumed magnetic sens. of reference
 #define CCsensMin 1e-4      // Min magnetic sens.
 #define CCsensMax 1.0       // Max magnetic sens.
-#define CAP     (1e-12*C_PER_A/I_PER_A) // Reference capacitance, F
-#define CAPmin  0.0         // Min capacitance, F
-#define CAPmax  1e-9        // Max capacitance, F
+#define CPIC    (1e-9*C_PER_A/I_PER_A)  // Reference capacitance, F/A
+#define CPICmin 0.0         // Minimum CPIC F/A
+#define CPICmax 1e-6        // Maximum CPIC F/A
+#define CAP     CPIC*Icrit  // Reference capacitance, F
 #define ICfct   M_PI_4      // Igap/Ic factor for reference
 #define ICfctMin 0.5        // Min factor
 #define ICfctMax M_PI_4     // Max factor
@@ -250,14 +250,28 @@ JJdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
                 model->JJcriti = Ic;
             }
         }
-        if (!model->JJcapGiven)
-            model->JJcap = CAP;
+        if (!model->JJcpicGiven)
+            model->JJcpic = CPIC;
         else {
-            if (model->JJcap < CAPmin || model->JJcap > CAPmax) {
+            if (model->JJcpic < CPICmin || model->JJcpic > CPICmax) {
+                DVO.textOut(OUT_WARNING,
+                    "%s: CPIC=%g out of range [%g-%g], reset to %g.\n",
+                    model->GENmodName, model->JJcpic, CPICmin, CPICmax, CPIC);
+                model->JJcpic = CPIC;
+            }
+        }
+        if (!model->JJcapGiven)
+            model->JJcap = model->JJcpic * model->JJcriti;
+        else {
+            double Icrit = model->JJcriti;
+            double cmin = CPICmin * Icrit;
+            double cmax = CPICmax * Icrit;
+            if (model->JJcap < cmin || model->JJcap > cmax) {
+                double cap = model->JJcpic * model->JJcriti;
                 DVO.textOut(OUT_WARNING,
                     "%s: CAP=%g out of range [%g-%g], reset to %g.\n",
-                    model->GENmodName, model->JJcap, CAPmin, CAPmax, CAP);
-                model->JJcap = CAP;
+                    model->GENmodName, model->JJcap, cmin, cmax, cap);
+                model->JJcap = cap;
             }
         }
         if (!model->JJicfGiven)
@@ -304,6 +318,7 @@ JJdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
             model->JJicrn = IcR;
         }
         else {
+            double IcRmax = model->JJvg * model->JJicFactor;
             if (model->JJicrn < IcRmin || model->JJicrn > IcRmax) {
                 DVO.textOut(OUT_WARNING,
                     "%s: ICRN=%g out of range [%g-%g], reset to %g.\n",
@@ -318,7 +333,7 @@ JJdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
         else {
             double i = model->JJcriti > 0.0 ? model->JJcriti : 1e-3;
             double RNmin = IcRmin/i;
-            double RNmax = IcRmax/i;
+            double RNmax = (model->JJvg * model->JJicFactor)/i;
             if (model->JJrn < RNmin || model->JJrn > RNmax) {
                 double RN = model->JJicrn/i;
                 DVO.textOut(OUT_WARNING,
@@ -331,7 +346,8 @@ JJdev::setup(sGENmodel *genmod, sCKT *ckt, int *states)
             model->JJrn = model->JJr0;
 
         if (model->JJvShuntGiven) {
-            if (model->JJvShunt < 0.0 || model->JJvShunt > model->JJvg) {
+            if (model->JJvShunt < 0.0 ||
+                    model->JJvShunt > (model->JJvg - model->JJdelv)) {
                 DVO.textOut(OUT_WARNING,
                     "%s: VSHUNT=%g out of range [%g-%g], reset to %g.\n",
                     model->GENmodName, model->JJvShunt, 0.0, model->JJvg, 0.0);

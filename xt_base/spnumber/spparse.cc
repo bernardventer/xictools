@@ -45,7 +45,7 @@ struct ParseNode;
 #include "ginterf/graphics.h"
 
 #ifdef WRSPICE
-#include "frontend.h"
+#include "simulator.h"
 #include "ttyio.h"
 #else
 // Xic
@@ -98,12 +98,6 @@ Parser::Parser(Element *elem, unsigned int flags)
     prsr_flags = flags;
     prsr_trinest = 0;
     prsr_in_source = false;
-}
-
-
-Parser::~Parser()
-{
-    delete [] prsr_el;
 }
 
 
