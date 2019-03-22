@@ -184,6 +184,7 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT ){
     char *tokens = strtok (inLine," =\n");
     char comp ='o';
     char Hold[20];
+    double TempPval = 0;
     
     // JJ or Inductor
     if(!(strncmp(inLine,"B",1))){               // for JJ
@@ -214,13 +215,46 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT ){
     else if ((comp == 'L')&&(strstr(tokens, "p") == NULL)){ 
         strcpy(Hold,tokens);             
     }
-    
+    // Rewrite component values to match InductEx input format
     if (strstr(tokens, "p") != NULL) {
-        tokens[strlen(tokens)-1] = '0';     //removes the p and replace it with a 0
+        tokens[strlen(tokens)-1] = ' ';     //removes the p
         strcat(newLine,tokens);
         strcat(newLine,"\n");
     }
-
+    else if(strncmp(Hold,"B",1)&&(comp == 'B')){ // parse values from JJ
+        TempPval = atof(tokens);
+        TempPval = TempPval *100;
+        gcvt(TempPval,10,tokens); 
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
+    else if (strstr(tokens, "n") != NULL) {
+        tokens[strlen(tokens)-1] = ' ';     //removes the n and convert to p 
+        TempPval = atof(tokens);
+        TempPval = TempPval * pow(10,(-3));
+        gcvt(TempPval,10,tokens); 
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
+    else if (strstr(tokens, "u") != NULL) {
+        tokens[strlen(tokens)-1] = ' ';     //removes the u and convert to p
+        TempPval = atof(tokens);
+        TempPval = TempPval * pow(10,(-6));
+        gcvt(TempPval,10,tokens); 
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
+    else if (strstr(tokens, "e") != NULL) { // using e-xx in component value
+        char vals[20];
+        char pw[4];
+        sscanf( tokens, "%[^e]e%[^\n]\n", vals, pw);     
+        int powers = atoi(pw); 
+        TempPval = atof(vals);
+        TempPval = TempPval * pow(10,(12+powers));
+        gcvt(TempPval,10,tokens); 
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
     else if(strstr(INbuffer,Hold)){ 
         strcat(Hold,"=");                   //last caracter must be =
         char *ParLine = strstr(INbuffer,Hold);
