@@ -494,25 +494,20 @@ runJoSIMExec(CmdDesc* cmd)
     SCD()->dumpSpiceFile(filename);
     PL()->ShowPrompt("DONE");
 
-    const char *JoSim_file_linux = "JoSIM_linux_RELEASE_NONE";
-    const char *JoSim_file_mac = "JoSIM_mac_RELEASE_NONE";
-    const char *JoSim_file_win = "JoSIM_win_RELEASE_NONE";
-
+    const char *JoSim_file = "josim";
+    const char *JoSim_file_cap = "JoSIM";
     char *inJoSIM = pathlist::expand_path("/usr/local/bin", false, true);
 
-    bool JoSIM_check_linux = pathlist::find_path_file(JoSim_file_linux, "/usr/local/bin",NULL,true);
-    bool JoSIM_check_mac = pathlist::find_path_file(JoSim_file_mac, "/usr/local/bin",NULL,true);
-    bool JoSIM_check_win = pathlist::find_path_file(JoSim_file_win, "/usr/local/bin",NULL,true);
+    bool JoSIM_check_linux = pathlist::find_path_file(JoSim_file, "/usr/local/bin",NULL,true);
+    bool JoSIM_check_mac = pathlist::find_path_file(JoSim_file_cap, "/usr/local/bin",NULL,true);
 
     //check path
     bool inJoSIMlib = false;
     // Choose the location of JoSIM
     if(JoSIM_check_linux)
-        inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM_linux_RELEASE_NONE", false, true);
+        inJoSIM = pathlist::expand_path("/usr/local/bin/josim", false, true);
     else if(JoSIM_check_mac)
-        inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM_mac_RELEASE_NONE", false, true);
-    else if(JoSIM_check_win)
-        inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM_win_RELEASE_NONE", false, true);
+        inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM", false, true);
     else {
         inJoSIMlib = true;
         // strcpy (jbuf, "");
@@ -525,10 +520,9 @@ runJoSIMExec(CmdDesc* cmd)
     }
 
     // Test if JoSIM has been selected
-    const char *loc_linux = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_linux);
-    const char *loc_mac = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_mac);
-    const char *loc_win = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_win);
-    if ((strcmp(JoSim_file_linux, loc_linux) != 0) && (strcmp(JoSim_file_mac, loc_mac) != 0) && (strcmp(JoSim_file_win, loc_win) != 0)&&!(inJoSIMlib)){
+    const char *loc_J1 = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file);
+    const char *loc_J2 = inJoSIM + strlen(inJoSIM) - strlen(JoSim_file_cap);
+    if ((strcmp(JoSim_file, loc_J1) != 0) && (strcmp(JoSim_file_cap, loc_J2) != 0) &&!(inJoSIMlib)){
         PL()->ShowPromptV("ERROR: JOSIM Not Found");
         Errs()->sys_error("ERROR: JOSIM Not Found");
         return;
