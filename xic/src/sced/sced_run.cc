@@ -77,6 +77,8 @@
 #include <string.h>
 #include <math.h>
 
+#include <bits/stdc++.h>
+
 // The pull-down menu entries.
 // These keywords are the menu labels, and are also used as help system
 // tags "run_spice:xxx".
@@ -180,7 +182,7 @@ namespace {
 // with the component name and coordinates.
 //
 void
-Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT ){  
+Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<std::string> &Ts){  
     char *tokens = strtok (inLine," =\n");
     char comp ='o';
     char Hold[20];
@@ -200,6 +202,12 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT ){
     for(int i = 0; i < 2 ; ++i){ 
         strcat(newLine," ");
         tokens = strtok (NULL, " =\n");
+        if(!(strncmp(tokens,"P",1))){                                   //if port is given as node name 
+            if(!(std::find(Ts.begin(),Ts.end(),tokens) != Ts.end())){
+                Ts.push_back(tokens);
+            }
+            strcat(newLine,"N_");
+        }
         strcat(newLine,tokens);
     }
     strcat(newLine," ");  
@@ -272,7 +280,7 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT ){
         else if(comp == 'B'){
             sscanf( ParLine, "%[^=]=%[^*]*", Pname, Pval);
             Cval = atof(Pval);
-            Cval = Cval * 100;            
+            Cval = Cval * 100; // change for model.lib icrit * area           
         } 
         gcvt(Cval,10,tokens);      
         strcat(newLine,tokens);
@@ -327,6 +335,7 @@ char
 void 
 Port_val(int portNumber, const char * PortName,char *NewLine, char *fileLine,FILE *OUT){
     char PortNum [10];
+    char Hold[20];
     sprintf(PortNum, "%d", portNumber); 
     strcpy(NewLine,PortName);
     strcat(NewLine,PortNum);
@@ -335,11 +344,12 @@ Port_val(int portNumber, const char * PortName,char *NewLine, char *fileLine,FIL
     char *seg = strtok (fileLine," ");
     seg = strtok (NULL, " ");
     if(!(strncmp(PortName,"PB",2))){
+        strcpy(Hold,seg);
         seg = strtok (NULL, " ");    // skip coord using IB
     }
     strcat(NewLine,seg);
     strcat(NewLine," ");
-    strcat(NewLine,"0");           
+    strcat(NewLine,Hold);           
     strcat(NewLine,"\n");
     fputs(NewLine,OUT);
     //delete [] seg;
@@ -353,41 +363,47 @@ inductexOUT(char * cirIN, char * cirOUT)
 {
     char fileString [256];
     char ParLine [256];
-    char New_line[256];
+    char New_line [256];
+    char VecTest [256];
     int pn = 1;                                     //port count
     int rn = 1;                                     //resistor port count
     int ib = 1;                                     // curretnt port count
 
     char * INbuff = LoadBuf(cirIN);
     FILE *pOUT = fopen (cirOUT , "w");  
-    FILE *pIN = fopen (cirIN , "r");   
+    FILE *pIN = fopen (cirIN , "r");
+
+    //Fix rest using vector
+    std::vector<std::string> PortID;   
 
     while ( fgets (fileString , 256 , pIN) != NULL ){
         if(!(strncmp(fileString,"*",1))){           
+            fputs(fileString,pOUT);  
+        }
+        if(!(strncmp(fileString,"K",1)) || !(strncmp(fileString,"k",1))){ // includes the Mutual Inductance term for inductEx (or allow anything through?)          
             fputs(fileString,pOUT);  
         }
         if(!(strncmp(fileString,".",1))){           
             // do Nothing,avoids false positives from param
         }
         else if(!(strncmp(fileString,"B",1))){                         
-            Param_val(fileString, INbuff,New_line, pOUT); 
+            Param_val(fileString, INbuff,New_line, pOUT,PortID); 
         
         }
         else if(!(strncmp(fileString,"IB",1))){                         
             Port_val(ib,"PB",New_line,fileString,pOUT);
             ib++;
         }
-
         // clk is named first and is the first port always.
         else if (strstr(fileString, "CLK") != NULL){ // ether one but not both??
             strcpy(ParLine,fileString);
-            Param_val(fileString, INbuff,New_line, pOUT); 
+            Param_val(fileString, INbuff,New_line, pOUT,PortID); 
             Port_val(pn,"P",New_line,ParLine,pOUT);
             pn++;                           
         }
         else if ((strstr(fileString, " IN ") != NULL) || (strstr(fileString, "IN_") != NULL)){       
             strcpy(ParLine,fileString);
-            Param_val(fileString, INbuff,New_line, pOUT); 
+            Param_val(fileString, INbuff,New_line, pOUT,PortID); 
             Port_val(pn,"P",New_line,ParLine,pOUT);
             pn++;                           
         }
@@ -401,13 +417,23 @@ inductexOUT(char * cirIN, char * cirOUT)
         }
         else if (!(strncmp(fileString,"L",1))){       
             if (strstr(fileString, "LRB") == NULL){      
-                Param_val(fileString, INbuff,New_line, pOUT);
+                Param_val(fileString, INbuff,New_line, pOUT,PortID);
             }
         }
     }
+    // Add ports to output file
+    int np = 0;
+    std::vector<std::string>::iterator i;
+    for ( i = PortID.begin() ; i < PortID.end() ; ++i ){
+        strcpy(VecTest,PortID[np].c_str());
+        strcat(VecTest," N_");
+        strcat(VecTest,PortID[np].c_str());
+        strcat(VecTest," 0\n");
+        fputs(VecTest,pOUT);
+        np++;
+    }
     fclose (pIN);
     fclose (pOUT);
-    //delete [] INbuff;
     free (INbuff);
     return;
 }
