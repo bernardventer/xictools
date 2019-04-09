@@ -280,17 +280,14 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
         else if(comp == 'B'){
             sscanf( ParLine, "%[^=]=%[^*]*", Pname, Pval);
             Cval = atof(Pval);
-            Cval = Cval * 100; // change for model.lib icrit * area           
+            Cval = Cval * 100; // change for ic * a           
         } 
         gcvt(Cval,10,tokens);      
         strcat(newLine,tokens);
         strcat(newLine,"\n");
     }
     fputs(newLine,OUT);
-    //delete [] Pname;
-    //delete [] Pval;
-    //delete [] tokens;
-    //delete [] ParLine;
+    // delete [] tokens;
     return;
 }
 
@@ -345,11 +342,19 @@ Port_val(int portNumber, const char * PortName,char *NewLine, char *fileLine,FIL
     seg = strtok (NULL, " ");
     if(!(strncmp(PortName,"PB",2))){
         strcpy(Hold,seg);
-        seg = strtok (NULL, " ");    // skip coord using IB
-    }
-    strcat(NewLine,seg);
-    strcat(NewLine," ");
-    strcat(NewLine,Hold);           
+        seg = strtok (NULL, " ");    
+        strcat(NewLine,seg);
+        strcat(NewLine," ");
+        strcat(NewLine,Hold);
+    } else if(!(strncmp(PortName,"PR",2))){
+        strcat(NewLine,seg);
+        strcat(NewLine," ");
+        seg = strtok (NULL, " ");    
+        strcat(NewLine,seg);
+    } else {
+        strcat(NewLine,seg);
+        strcat(NewLine," 0");
+    }           
     strcat(NewLine,"\n");
     fputs(NewLine,OUT);
     //delete [] seg;
@@ -365,8 +370,8 @@ inductexOUT(char * cirIN, char * cirOUT)
     char ParLine [256];
     char New_line [256];
     char VecTest [256];
-    int pn = 1;                                     //port count
-    int rn = 1;                                     //resistor port count
+    int pn = 1;                                     // port count
+    int rn = 1;                                     // resistor port count
     int ib = 1;                                     // curretnt port count
 
     char * INbuff = LoadBuf(cirIN);
@@ -380,11 +385,11 @@ inductexOUT(char * cirIN, char * cirOUT)
         if(!(strncmp(fileString,"*",1))){           
             fputs(fileString,pOUT);  
         }
-        if(!(strncmp(fileString,"K",1)) || !(strncmp(fileString,"k",1))){ // includes the Mutual Inductance term for inductEx (or allow anything through?)          
+        if(!(strncmp(fileString,"K",1)) || !(strncmp(fileString,"k",1))){ // includes the Mutual Inductance term for inductEx          
             fputs(fileString,pOUT);  
         }
         if(!(strncmp(fileString,".",1))){           
-            // do Nothing,avoids false positives from param
+        // do Nothing,avoids false positives from param
         }
         else if(!(strncmp(fileString,"B",1))){                         
             Param_val(fileString, INbuff,New_line, pOUT,PortID); 
@@ -395,7 +400,7 @@ inductexOUT(char * cirIN, char * cirOUT)
             ib++;
         }
         // clk is named first and is the first port always.
-        else if (strstr(fileString, "CLK") != NULL){ // ether one but not both??
+        else if (strstr(fileString, "CLK") != NULL){ 
             strcpy(ParLine,fileString);
             Param_val(fileString, INbuff,New_line, pOUT,PortID); 
             Port_val(pn,"P",New_line,ParLine,pOUT);
@@ -437,10 +442,6 @@ inductexOUT(char * cirIN, char * cirOUT)
     free (INbuff);
     return;
 }
-
-
-
-
 
 //-----------------------------------------------------------------------------
 // The RUN WRspice command.
