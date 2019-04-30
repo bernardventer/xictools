@@ -652,6 +652,7 @@ gtkMenuConfig::instantiateMainMenus()
         set(mbox->menu[extMenuExcfg], "/Extract/Set_up", 0);
         set(mbox->menu[extMenuSel], "/Extract/_Net Selections", 0);
         set(mbox->menu[extMenuDvsel], "/Extract/_Device Selections", 0);
+        set(mbox->menu[extMenuIdx], "/Extract/_Source InductEx", 0);
         set(mbox->menu[extMenuSourc], "/Extract/_Source SPICE", 0);
         set(mbox->menu[extMenuExset], "/Extract/Source P_hysical", 0);
         set(mbox->menu[extMenuPnet], "/Extract/Dump Ph_ys Netlist", 0);

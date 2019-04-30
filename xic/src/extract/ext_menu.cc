@@ -62,6 +62,7 @@ namespace {
         MenuFunc  M_ExtSel;
         MenuFunc  M_DevSelect;
         MenuFunc  M_Source;
+        MenuFunc  M_IDX;
         MenuFunc  M_Exset;
         MenuFunc  M_DumpPhysNet;
         MenuFunc  M_DumpElecNet;
@@ -130,6 +131,9 @@ cExt::createMenu()
     ExtractMenu[extMenuDvsel] =
         MenuEnt(M_DevSelect,MenuDVSEL,  ME_TOGGLE | ME_SEP,   CMD_SAFE,
         MenuDVSEL": Show, select, compute, compare devices.");
+    ExtractMenu[extMenuIdx] =
+        MenuEnt(M_IDX,   MenuIDX,  ME_TOGGLE,  CMD_NOTSAFE,
+        MenuIDX": Extract electrical info from InductEx file.");
     ExtractMenu[extMenuSourc] =
         MenuEnt(M_Source,   MenuSOURC,  ME_TOGGLE,  CMD_NOTSAFE,
         MenuSOURC": Extract electrical info from SPICE file.");
@@ -175,6 +179,10 @@ cExt::setupCommand(MenuEnt *ent, bool *retval, bool *call_on_up)
     // to handle the button-up events.
 
     if (!strcmp(ent->entry, MenuSOURC)) {
+        *call_on_up = true;
+        return (true);
+    }
+    if (!strcmp(ent->entry, MenuIDX)) {
         *call_on_up = true;
         return (true);
     }
@@ -359,6 +367,68 @@ SOURCcmd::sourc_cb(const char *name, void*, bool state, const char *fpath,
         }
     }
     return (true);
+}
+
+//-----------------------------------------------------------------------------
+// The IDX command.
+//
+// The IDX button adds back-annotation from InductEx to XIC schematic editor.
+// the results in the circuit is updated without creating new objects.
+
+namespace {
+    namespace ext_menu {
+        struct IDXcmd
+        {
+            void idx_exec(CmdDesc*);
+        };
+        IDXcmd IDX;
+    }
+}
+
+void
+ext_menu::M_IDX(CmdDesc *cmd)
+{
+    IDX.idx_exec(cmd);
+}
+
+void
+IDXcmd::idx_exec(CmdDesc *cmd)
+{
+    Deselector ds(cmd);
+    if (!XM()->CheckCurCell(false, true, Physical))
+        return;
+    if (!XM()->CheckCurCell(true, true, Electrical))
+        return;
+    ds.clear();
+
+    if (!cmd || !cmd->caller)
+        return;
+
+    char tbuf[256];
+    char *cwd = getcwd(0, 0);
+    strcpy(tbuf,cwd);
+    strcat(tbuf,"/IDXout.elecnet");
+    char *fname = pathlist::expand_path(tbuf, false, true);
+    FILE *fp = filestat::open_file(fname, "r");
+    if (!fp) {
+        Log()->ErrorLog(mh::Initialization, filestat::error_msg());
+        delete [] fname;
+        free(cwd);
+        return;
+        }
+
+    int mode = 0;
+    mode |= EFS_ALLDEVS;
+    EV()->InitCallback();
+    CDs *cursde = CurCell(Electrical, true);
+        if (!cursde)
+            return;
+    SCD()->extractFromSpice(cursde, fp, mode);
+    PL()->ShowPrompt("Done.");
+    fclose(fp);
+    free(cwd);
+    delete [] fname;
+    return;
 }
 
 

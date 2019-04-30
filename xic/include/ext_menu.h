@@ -48,6 +48,7 @@ enum
     extMenuExcfg,
     extMenuSel,
     extMenuDvsel,
+    extMenuIdx,
     extMenuSourc,
     extMenuExset,
     extMenuPnet,
@@ -63,6 +64,7 @@ enum
 #define    MenuEXSEL     "exsel"
 #define    MenuDVSEL     "dvsel"
 #define    MenuSOURC     "sourc"
+#define    MenuIDX       "idx"
 #define    MenuEXSET     "exset"
 #define    MenuPNET      "pnet"
 #define    MenuENET      "enet"
