@@ -182,10 +182,12 @@ namespace {
 // with the component name and coordinates.
 //
 void
-Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<std::string> &Ts){  
+Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<std::string> &Ts,std::vector<std::string> &TsCoord){  
     char *tokens = strtok (inLine," =\n");
     char comp ='o';
+    int coord_flag = 0;
     char Hold[20];
+    char Coord[20];
     double TempPval = 0;
     
     // JJ or Inductor
@@ -195,6 +197,9 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
     }
     else if (!(strncmp(inLine,"L",1))){         // for inductor
         comp = 'L';
+    }
+    else if (!(strncmp(inLine,"R",1))){         // for resistor
+        comp = 'R';
     }          
     strcpy(newLine,tokens);          
 
@@ -205,9 +210,20 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
         if(!(strncmp(tokens,"P",1))){                                   //if port is given as node name 
             if(!(std::find(Ts.begin(),Ts.end(),tokens) != Ts.end())){
                 Ts.push_back(tokens);
+                if(i && !coord_flag && (comp == 'R')){                  // only applicable to resistors
+                    TsCoord.push_back(Hold);
+                }
+                else
+                {
+                    strcpy(Coord,"N_");
+                    strcat(Coord,tokens);
+                    TsCoord.push_back(Coord);
+                    coord_flag = 1;
+                }               
             }
             strcat(newLine,"N_");
         }
+        strcpy(Hold,tokens);                                            // save coord
         strcat(newLine,tokens);
     }
     strcat(newLine," ");  
@@ -268,17 +284,32 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
         char *ParLine = strstr(INbuffer,Hold);
         char Pname[20];
         char Pval[30];
+        char Pscale[20];
         char Pwr[4];
         double Cval; 
 
-        if(comp == 'L'){ //        
-            sscanf( ParLine, "%[^=]=%[^e]e%[^*]*", Pname, Pval, Pwr); 
+        if(comp == 'L'){ //
+            if(strncmp(ParLine,"Scaling",7) == 0){
+                sscanf( ParLine, "%[^=]=%[^e]e%[^*]*", Pname, Pval, Pwr);
+            }
+            else
+            {
+                sscanf( ParLine, "%[^=]=%[^e]e%[^\n]\n", Pname, Pval, Pwr);
+            }
+                    
             int power = atoi(Pwr); 
             Cval = atof(Pval);
             Cval =  Cval * pow(10,(12+power)); 
         }
         else if(comp == 'B'){
-            sscanf( ParLine, "%[^=]=%[^*]*", Pname, Pval);
+            if(strncmp(ParLine,"Scaling",7) == 0){
+                sscanf( ParLine, "%[^=]=%[^*]*%[^\n]\n", Pname, Pval,Pscale);
+            }
+            else
+            {
+                sscanf( ParLine, "%[^=]=%[^\n]\n", Pname, Pval);
+            }
+            
             Cval = atof(Pval);
             Cval = Cval * 100; // change for ic * a           
         } 
@@ -286,7 +317,9 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
         strcat(newLine,tokens);
         strcat(newLine,"\n");
     }
-    fputs(newLine,OUT);
+    // Remove resistance 
+    if(!(comp == 'R'))
+        fputs(newLine,OUT);
     // delete [] tokens;
     return;
 }
@@ -379,7 +412,8 @@ inductexOUT(char * cirIN, char * cirOUT)
     FILE *pIN = fopen (cirIN , "r");
 
     //Fix rest using vector
-    std::vector<std::string> PortID;   
+    std::vector<std::string> PortID;
+    std::vector<std::string> PortCoord;   
 
     while ( fgets (fileString , 256 , pIN) != NULL ){
         if(!(strncmp(fileString,"*",1))){           
@@ -392,7 +426,7 @@ inductexOUT(char * cirIN, char * cirOUT)
         // do Nothing,avoids false positives from param
         }
         else if(!(strncmp(fileString,"B",1))){                         
-            Param_val(fileString, INbuff,New_line, pOUT,PortID); 
+            Param_val(fileString, INbuff,New_line, pOUT,PortID,PortCoord); 
         
         }
         else if(!(strncmp(fileString,"IB",1))){                         
@@ -402,13 +436,13 @@ inductexOUT(char * cirIN, char * cirOUT)
         // clk is named first and is the first port always.
         else if (strstr(fileString, "CLK") != NULL){ 
             strcpy(ParLine,fileString);
-            Param_val(fileString, INbuff,New_line, pOUT,PortID); 
+            Param_val(fileString, INbuff,New_line, pOUT,PortID,PortCoord); 
             Port_val(pn,"P",New_line,ParLine,pOUT);
             pn++;                           
         }
         else if ((strstr(fileString, " IN ") != NULL) || (strstr(fileString, "IN_") != NULL)){       
             strcpy(ParLine,fileString);
-            Param_val(fileString, INbuff,New_line, pOUT,PortID); 
+            Param_val(fileString, INbuff,New_line, pOUT,PortID,PortCoord); 
             Port_val(pn,"P",New_line,ParLine,pOUT);
             pn++;                           
         }
@@ -422,8 +456,11 @@ inductexOUT(char * cirIN, char * cirOUT)
         }
         else if (!(strncmp(fileString,"L",1))){       
             if (strstr(fileString, "LRB") == NULL){      
-                Param_val(fileString, INbuff,New_line, pOUT,PortID);
+                Param_val(fileString, INbuff,New_line, pOUT,PortID,PortCoord);
             }
+        }
+        else if (!(strncmp(fileString,"R",1)) && (strstr(fileString, " P") != NULL)){       
+            Param_val(fileString, INbuff,New_line, pOUT,PortID,PortCoord); 
         }
     }
     // Add ports to output file
@@ -431,8 +468,8 @@ inductexOUT(char * cirIN, char * cirOUT)
     std::vector<std::string>::iterator i;
     for ( i = PortID.begin() ; i < PortID.end() ; ++i ){
         strcpy(VecTest,PortID[np].c_str());
-        strcat(VecTest," N_");
-        strcat(VecTest,PortID[np].c_str());
+        strcat(VecTest," ");
+        strcat(VecTest,PortCoord[np].c_str());
         strcat(VecTest," 0\n");
         fputs(VecTest,pOUT);
         np++;
