@@ -65,15 +65,8 @@ Authors: 1987 Wayne A. Christopher
 //
 
 // keywords
-const char *kw_measure = "measure";
-const char *kw_stop   = "stop";
-const char *kw_after  = "after";
-const char *kw_at     = "at";
-const char *kw_before = "before";
-const char *kw_when   = "when";
 const char *kw_active = "active";
 const char *kw_inactive = "inactive";
-const char *kw_call   = "call";
 
 
 // Set up a measure runop.
@@ -727,7 +720,7 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
             for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
                 if (run->anType() != d->analysis())
                     continue;
-                if (!d->do_measure(run))
+                if (!d->do_measure())
                     measures_done = false;
             }
             run->unsegmentizeVecs();
@@ -820,15 +813,17 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
             }
             ROret r = d->check_stop(run);
             if (r == RO_PAUSE || r == RO_ENDIT) {
-                bool need_pr = TTY.is_tty() && CP.GetFlag(CP_WAITING);
-                TTY.printf("%-2d: condition met: ", d->number());
-                d->print_cond(0, false);
                 if (r == RO_PAUSE)
                     o_shouldstop = true;
                 else
                     o_endit = true;
-                if (need_pr)
-                    CP.Prompt();
+                if (!d->silent()) {
+                    bool need_pr = TTY.is_tty() && CP.GetFlag(CP_WAITING);
+                    TTY.printf("%-2d: condition met: ", d->number());
+                    d->print_cond(0, false);
+                    if (need_pr)
+                        CP.Prompt();
+                }
             }
         }
 
@@ -843,7 +838,7 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
                 for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
                     if (run->anType() != d->analysis())
                         continue;
-                    if (!d->do_measure(run))
+                    if (!d->do_measure())
                         measures_done = false;
                 }
                 run->unsegmentizeVecs();
@@ -892,6 +887,16 @@ IFoutput::checkRunops(sRunDesc *run, double ref)
 
     if (chk && (chk->out_mode == OutcCheckSeg ||
             chk->out_mode == OutcCheckMulti)) {
+
+        // Get status from stops/measures for trial state.
+        if (o_endit)
+            chk->set_nogo(true);
+        if (o_shouldstop) {
+            o_endit = true;
+            o_shouldstop = false;
+            chk->set_failed(true);
+        }
+
         if (!chk->points() || ref < chk->points()[chk->index()] ||
                 chk->index() >= chk->max_index()) {
             vecGc();
@@ -939,6 +944,51 @@ IFoutput::pauseTest(sRunDesc *run)
     }
     else
         return (OK);
+}
+
+
+// Return true if an runop of DF_XXX type given in which exists.
+//
+bool
+IFoutput::hasRunop(unsigned int which)
+{
+    sRunopDb *db = Sp.CurCircuit() ? &Sp.CurCircuit()->runops() : 0;
+    if (which & DF_SAVE) {
+        ROgen<sRunopSave> vgen(o_runops->saves(), db ? db->saves() : 0);
+        for (sRunopSave *d = vgen.next(); d; d = vgen.next()) {
+            if (d->active())
+                return (true);
+        }
+    }
+    if (which & DF_TRACE) {
+        ROgen<sRunopTrace> tgen(o_runops->traces(), db ? db->traces() : 0);
+        for (sRunopTrace *d = tgen.next(); d; d = tgen.next()) {
+            if (d->active())
+                return (true);
+        }
+    }
+    if (which & DF_IPLOT) {
+        ROgen<sRunopIplot> igen(o_runops->iplots(), db ? db->iplots() : 0);
+        for (sRunopIplot *d = igen.next(); d; d = igen.next()) {
+            if (d->active())
+                return (true);
+        }
+    }
+    if (which & DF_MEASURE) {
+        ROgen<sRunopMeas> mgen(o_runops->measures(), db ? db->measures() : 0);
+        for (sRunopMeas *d = mgen.next(); d; d = mgen.next()) {
+            if (d->active())
+                return (true);
+        }
+    }
+    if (which & DF_STOP) {
+        ROgen<sRunopStop> sgen(o_runops->stops(), db ? db->stops() : 0);
+        for (sRunopStop *d = sgen.next(); d; d = sgen.next()) {
+            if (d->active())
+                return (true);
+        }
+    }
+    return (false);
 }
 // End of IFoutput functions.
 

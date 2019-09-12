@@ -97,7 +97,7 @@ CommandTab::com_mctrial(wordlist*)
 
 
 void
-CommandTab::com_findrange(wordlist*)
+CommandTab::com_findrange(wordlist *wl)
 {
     if (!Sp.CurCircuit())
         return;
@@ -105,6 +105,19 @@ CommandTab::com_findrange(wordlist*)
     if (!cj)
         return;
     int ret = true;
+
+    bool dolower = true, doupper = true;
+    while (wl) {
+        if (*wl->wl_word == 'l' || *wl->wl_word == 'L') {
+            dolower = true;
+            doupper = false;
+        }
+        else if (*wl->wl_word == 'u' || *wl->wl_word == 'U') {
+            dolower = false;
+            doupper = true;
+        }
+        wl = wl->wl_next;
+    }
 
     bool mbak = cj->monte();
     bool abak = cj->doall();
@@ -118,7 +131,7 @@ CommandTab::com_findrange(wordlist*)
     if (!cj->out_cir)
         ret = cj->initial();
     if (ret)
-        ret = cj->findRange();
+        ret = cj->findRange(dolower, doupper);
 
     cj->set_monte(mbak);
     cj->set_doall(abak);
@@ -311,26 +324,23 @@ IFsimulator::MargAnalysis(wordlist *wl)
 
 
 // Check the codeblocks.  There are two, one from the EBLK_KW
-// (".exec") lines, which is optional, and one from the CBLK_KW
-// (".control") lines, which is essential.  Alternatively, external
-// codeblocks can be bound, and are referenced by name, if the name
-// field of the circuit struct is not 0.
+// (".exec") lines, and one from the CBLK_KW (".control") lines, both
+// are optional.  Alternatively, external codeblocks can be bound, and
+// are referenced by name, if the name field of the circuit struct is
+// not 0.
 //
 int
 sFtCirc::checkCodeblocks()
 {
     if (!controlBlk().name()) {
         if (!controlBlk().tree()) {
-            if (!controlBlk().text()) {
-                GRpkgIf()->ErrPrintf(ET_ERROR,
-                    "no control statements or codeblock.\n");
-                return (E_NOTFOUND);
-            }
-            controlBlk().set_tree(CP.MakeControl(controlBlk().text()));
-            if (!controlBlk().tree()) {
-                GRpkgIf()->ErrPrintf(ET_ERROR,
-                    "control statements parse failed.\n");
-                return(E_FAILED);
+            if (controlBlk().text()) {
+                controlBlk().set_tree(CP.MakeControl(controlBlk().text()));
+                if (!controlBlk().tree()) {
+                    GRpkgIf()->ErrPrintf(ET_ERROR,
+                        "control statements parse failed.\n");
+                    return(E_FAILED);
+                }
             }
         }
     }
@@ -343,10 +353,7 @@ sFtCirc::checkCodeblocks()
     }
     if (!execBlk().name()) {
         if (!execBlk().tree()) {
-            if (!execBlk().text())
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "no exec statements or codeblock.\n");
-            else {
+            if (execBlk().text()) {
                 execBlk().set_tree(CP.MakeControl(execBlk().text()));
                 if (!execBlk().tree()) {
                     GRpkgIf()->ErrPrintf(ET_ERROR,
@@ -1008,7 +1015,7 @@ sCHECKprms::initOutMode(bool keepall, bool sgbase, bool keepplot)
             ch_segbase = lstring::copy(vv.get_string());
         out_mode = OutcCheckSeg;
     }
-    else if (keepplot || OP.isIplot(true)) {
+    else if (keepplot || OP.hasIplot(true) || OP.hasRunop(DF_MEASURE|DF_STOP)) {
         // Keep all data for curent trial.
         out_mode = OutcCheckSeg;
     }
@@ -1197,7 +1204,7 @@ sCHECKprms::loop()
     if (ch_step1 == 0 && ch_step2 == 0) {
         if (ch_monte)
             return (OK);
-        return (findRange());
+        return (findRange(true, true));
     }
 
     int num1 = 2*ch_step1 + 1;
@@ -1268,10 +1275,8 @@ sCHECKprms::loop()
                         d->set_realval(j+ch_step2, value1);
                     }
                 }
-                else {
-                    if (findrange1(value1, j + ch_step2, true, false))
-                        goto quit;
-                }
+                else if (find_lower1(value1, j + ch_step2))
+                    goto quit;
             }
 
             rowflags = ch_flags + (j + ch_step2 + 1)*num1 - 1;
@@ -1293,10 +1298,8 @@ sCHECKprms::loop()
                         d->set_realval(j+ch_step2, value1);
                     }
                 }
-                else {
-                    if (findrange1(value1, j + ch_step2, false, true))
-                        goto quit;
-                }
+                else if (find_upper1(value1, j + ch_step2))
+                    goto quit;
             }
         }
     }
@@ -1328,10 +1331,8 @@ sCHECKprms::loop()
                         d->set_realval(i+ch_step1, value2);
                     }
                 }
-                else {
-                    if (findrange2(value2, i + ch_step1, true, false))
-                        goto quit;
-                }
+                else if (find_lower2(value2, i + ch_step1))
+                    goto quit;
             }
             last = j;
 
@@ -1354,10 +1355,8 @@ sCHECKprms::loop()
                         d->set_realval(i+ch_step1, value2);
                     }
                 }
-                else {
-                    if (findrange2(value2, i + ch_step1, false, true))
-                        goto quit;
-                }
+                else if (find_upper2(value2, i + ch_step1))
+                    goto quit;
             }
         }
     }
@@ -1464,8 +1463,12 @@ sCHECKprms::trial(int i, int j, double value1, double value2)
 CBret
 sCHECKprms::evaluate()
 {
+    ch_evalcnt++;
+
     CBret ret = CBfail;
     if (out_cir && out_plot) {
+        if (!out_cir->controlBlk().tree())
+            return (CBok);
         sFtCirc *cir = Sp.CurCircuit();
         sPlot *plt = OP.curPlot();
         Sp.SetCurCircuit(out_cir);
@@ -1494,7 +1497,6 @@ sCHECKprms::evaluate()
         Sp.SetCurCircuit(cir);
         OP.setCurPlot(plt);
     }
-    ch_evalcnt++;
     ch_fail = (ret == CBfail);
     ch_nogo = (ret == CBendit);
     return (ret);
@@ -1617,7 +1619,7 @@ sCHECKprms::findEdge(const char *po, const char *pc)
 // (the checkiterate variable) is zero.
 //
 bool
-sCHECKprms::findRange()
+sCHECKprms::findRange(bool dolower, bool doupper)
 {
     if (ch_fail) {
         // center point bad
@@ -1674,7 +1676,9 @@ sCHECKprms::findRange()
                     continue;
                 double value1 = d->realval(i);
                 set_vec(ch_names->n1(), (double)i);
-                if (findrange1(value1, i, true, true))
+                if (doupper && find_upper1(value1, i))
+                    continue;
+                if (dolower && find_lower1(value1, i))
                     continue;
             }
         }
@@ -1682,9 +1686,13 @@ sCHECKprms::findRange()
     }
     if (ch_iterno == 0)
         return (false);
-    if (findrange1(ch_val1, 0, true, true))
+    if (doupper && find_upper1(ch_val1, 0))
         return (true);
-    if (findrange2(ch_val2, 0, true, true))
+    if (dolower && find_lower1(ch_val1, 0))
+        return (true);
+    if (doupper && find_upper2(ch_val2, 0))
+        return (true);
+    if (dolower && find_lower2(ch_val2, 0))
         return (true);
     return (false);
 }
@@ -2205,136 +2213,168 @@ sCHECKprms::set_rangevec()
 
 #define SPAN 10
 
-// Find the operating range of value1, using val as the starting point.
-// Results are recorded in OPLO1 and OPHI1.  Returns true if error.
+// Find the upper limit of value1, using val as the starting point.
+// Results are recorded in OPHI1.  Returns true if error.
 //
 bool
-sCHECKprms::findrange1(double val, int offset, bool dolower, bool doupper)
+sCHECKprms::find_upper1(double val, int offset)
 {
     if (offset < 0)
         return (true);
-    if (val != 0.0) {
-        sDataVec *d = out_plot->find_vec(OPHI1);
-        if (doupper && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v1 upper limit...\n");
-            double value2 = ch_val2;
-            double value1 = val;
-            double delta = fabs(.5*value1);
-            int i;
-            for (i = 0; i < SPAN; i++) {
-                value1 += delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value1 -= delta;
-                    if (findext1(ch_iterno, &value1, value2, -delta))
-                        return (true);
-                    d->set_realval(offset, value1);
-                    break;
-                }
-            }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find upper v1 limit.\n");
-                d->set_realval(offset, 0.0);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPHI1);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v1 upper limit...\n");
+        double value2 = ch_val2;
+        double value1 = val;
+        double delta = fabs(.5*value1);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value1 += delta;
+            ch_no_output = true;
+            trial(0, 0, value1, value2);
+            ch_no_output = false;
+            if (ch_fail) {
+                value1 -= delta;
+                if (findext1(ch_iterno, &value1, value2, -delta))
+                    return (true);
+                d->set_realval(offset, value1);
+                break;
             }
         }
-        d = out_plot->find_vec(OPLO1);
-        if (dolower && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v1 lower limit...\n");
-            double value2 = ch_val2;
-            double value1 = val;
-            double delta = fabs(.5*value1);
-            int i;
-            for (i = 0; i < SPAN; i++) {
-                value1 -= delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value1 += delta;
-                    if (findext1(ch_iterno, &value1, value2, delta))
-                        return (true);
-                    d->set_realval(offset, value1);
-                    break;
-                }
-            }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find lower v1 limit.\n");
-                d->set_realval(offset, 0.0);
-            }
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find upper v1 limit.\n");
+            d->set_realval(offset, 0.0);
         }
     }
     return (false);
 }
 
 
-// Find the operating range of value2, using val as the starting point.
-// Results are recorded in OPLO2 and OPHI2.  Returns true if error.
+// Find the lower limit of value1, using val as the starting point.
+// Results are recorded in OPLO1.  Returns true if error.
 //
 bool
-sCHECKprms::findrange2(double val, int offset, bool dolower, bool doupper)
+sCHECKprms::find_lower1(double val, int offset)
 {
     if (offset < 0)
         return (true);
-    if (val != 0.0) {
-        sDataVec *d = out_plot->find_vec(OPHI2);
-        if (doupper && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v2 upper limit...\n");
-            double value2 = val;
-            double value1 = ch_val1;
-            double delta = fabs(.5*value2);
-            int i;
-            for (i = 0; i < SPAN; i++) {
-                value2 += delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value2 -= delta;
-                    if (findext2(ch_iterno, value1, &value2, -delta))
-                        return (true);
-                    d->set_realval(offset, value2);
-                    break;
-                }
-            }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find upper v2 limit.\n");
-                d->set_realval(offset, 0.0);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPLO1);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v1 lower limit...\n");
+        double value2 = ch_val2;
+        double value1 = val;
+        double delta = fabs(.5*value1);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value1 -= delta;
+            ch_no_output = true;
+            trial(0, 0, value1, value2);
+            ch_no_output = false;
+            if (ch_fail) {
+                value1 += delta;
+                if (findext1(ch_iterno, &value1, value2, delta))
+                    return (true);
+                d->set_realval(offset, value1);
+                break;
             }
         }
-        d = out_plot->find_vec(OPLO2);
-        if (dolower && d && offset < d->length()) {
-            if (!ch_batchmode)
-                TTY.printf("Computing v2 lower limit...\n");
-            double value2 = val;
-            double value1 = ch_val1;
-            double delta = fabs(.5*value2);
-            int i;
-            for (i = 0; i < SPAN; i++) {
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find lower v1 limit.\n");
+            d->set_realval(offset, 0.0);
+        }
+    }
+    return (false);
+}
+
+
+// Find the upper limit of value2, using val as the starting point. 
+// Results are recorded in OPHI2.  Returns true if error.
+//
+bool
+sCHECKprms::find_upper2(double val, int offset)
+{
+    if (offset < 0)
+        return (true);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPHI2);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v2 upper limit...\n");
+        double value2 = val;
+        double value1 = ch_val1;
+        double delta = fabs(.5*value2);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value2 += delta;
+            ch_no_output = true;
+            trial(0, 0, value1, value2);
+            ch_no_output = false;
+            if (ch_fail) {
                 value2 -= delta;
-                ch_no_output = true;
-                trial(0, 0, value1, value2);
-                ch_no_output = false;
-                if (ch_fail) {
-                    value2 += delta;
-                    if (findext2(ch_iterno, value1, &value2, delta))
-                        return (true);
-                    d->set_realval(offset, value2);
-                    break;
-                }
+                if (findext2(ch_iterno, value1, &value2, -delta))
+                    return (true);
+                d->set_realval(offset, value2);
+                break;
             }
-            if (i == SPAN) {
-                GRpkgIf()->ErrPrintf(ET_WARN,
-                    "could not find lower v2 limit.\n");
-                d->set_realval(offset, 0.0);
+        }
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find upper v2 limit.\n");
+            d->set_realval(offset, 0.0);
+        }
+    }
+    return (false);
+}
+
+
+// Find the lower limit of value2, using val as the starting point. 
+// Results are recorded in OPLO2.  Returns true if error.
+//
+bool
+sCHECKprms::find_lower2(double val, int offset)
+{
+    if (offset < 0)
+        return (true);
+    if (val == 0.0)
+        return (false);
+
+    sDataVec *d = out_plot->find_vec(OPLO2);
+    if (d && offset < d->length()) {
+        if (!ch_batchmode)
+            TTY.printf("Computing v2 lower limit...\n");
+        double value2 = val;
+        double value1 = ch_val1;
+        double delta = fabs(.5*value2);
+        int i;
+        for (i = 0; i < SPAN; i++) {
+            value2 -= delta;
+            ch_no_output = true;
+            trial(0, 0, value1, value2);
+            ch_no_output = false;
+            if (ch_fail) {
+                value2 += delta;
+                if (findext2(ch_iterno, value1, &value2, delta))
+                    return (true);
+                d->set_realval(offset, value2);
+                break;
             }
+        }
+        if (i == SPAN) {
+            GRpkgIf()->ErrPrintf(ET_WARN,
+                "could not find lower v2 limit.\n");
+            d->set_realval(offset, 0.0);
         }
     }
     return (false);

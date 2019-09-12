@@ -2064,15 +2064,20 @@ sFtCirc::expand(sLine *realdeck, bool *err)
             if (er) {
                 dd->set_error(er);
                 delete [] er;
+                delete m;
             }
-                
-            if (!ci_runops.measures())
-                ci_runops.set_measures(m);
             else {
-                sRunopMeas *mx = ci_runops.measures();
-                while (mx->next())
-                    mx = mx->next();
-                mx->set_next(m);
+                m->set_number(OP.runops()->new_count());
+                m->set_active(true);
+                
+                if (!ci_runops.measures())
+                    ci_runops.set_measures(m);
+                else {
+                    sRunopMeas *mx = ci_runops.measures();
+                    while (mx->next())
+                        mx = mx->next();
+                    mx->set_next(m);
+                }
             }
         }
         else if (lstring::cimatch(STOP_KW, dd->line())) {
@@ -2084,15 +2089,20 @@ sFtCirc::expand(sLine *realdeck, bool *err)
             if (er) {
                 dd->set_error(er);
                 delete [] er;
+                delete m;
             }
-                
-            if (!ci_runops.stops())
-                ci_runops.set_stops(m);
             else {
-                sRunopStop *mx = ci_runops.stops();
-                while (mx->next())
-                    mx = mx->next();
-                mx->set_next(m);
+                m->set_number(OP.runops()->new_count());
+                m->set_active(true);
+                
+                if (!ci_runops.stops())
+                    ci_runops.set_stops(m);
+                else {
+                    sRunopStop *mx = ci_runops.stops();
+                    while (mx->next())
+                        mx = mx->next();
+                    mx->set_next(m);
+                }
             }
         }
         // Maybe add .trace, .iplot?
@@ -2296,9 +2306,11 @@ sLine::get_keywords(int *kwfound)
             continue;
         }
 
-        if (lstring::cimatch(CONT_KW, dd->li_line))
+        if (lstring::cimatch(CONT_KW, dd->li_line) ||
+                lstring::cimatch(CONT_PREFX, dd->li_line))
             *kwfound |= LI_CONT_FOUND;
-        else if (lstring::cimatch(EXEC_KW, dd->li_line))
+        else if (lstring::cimatch(EXEC_KW, dd->li_line) ||
+                lstring::cimatch(EXEC_PREFX, dd->li_line))
             *kwfound |= LI_EXEC_FOUND;
         else if (lstring::cimatch(POST_KW, dd->li_line))
             *kwfound |= LI_POST_FOUND;
@@ -2447,12 +2459,15 @@ sLine::get_controls(bool allcmds, CBLK_TYPE type, bool oldformat)
                 delete dd;
             }
             if (blkname) {
-                // save as named codeblock
+                // Save as named codeblock and clear state, there may
+                // be arbitrarily many of these.
 
                 CP.AddBlock(blkname, named_blk);
 
                 delete [] blkname;
                 blkname = 0;
+                wordlist::destroy(named_blk);
+                named_blk = 0;
             }
         }
         else if (!*dd->li_line || ((allcmds ||
@@ -2648,6 +2663,22 @@ sLine::var_subst()
 sParamTab *
 sLine::process_conditionals(sParamTab *ptab)
 {
+    // Stack element.
+    struct ifel
+    {
+        ifel(ifel *n, int l)
+            {
+                bnext = n;
+                blev = l;
+                btaken = false;
+            }
+
+        ifel *bnext;
+        int  blev;      // level of .if
+        bool btaken;    // one of the if/elif/else clauses was selected
+    };
+
+    ifel *ifcx = 0;     // the stack
     sLine *blhead = 0;  // statement just before block to be deleted
 
     const char *sbstart = SUBCKT_KW;
@@ -2660,7 +2691,7 @@ sLine::process_conditionals(sParamTab *ptab)
     if (Sp.GetVar(kw_subend, VTYP_STRING, &vv2))
         sbend = vv2.get_string();
 
-    int inif = 0, blev = 0, insc = 0, incb = 0;
+    int inif = 0, insc = 0, incb = 0;
     sLine *dp = this, *dn;
     for (sLine *dd = li_next; dd; dd = dn) {
         dn = dd->li_next;
@@ -2733,14 +2764,16 @@ sLine::process_conditionals(sParamTab *ptab)
             if (strchr(dd->li_line, '$'))
                 dd->var_subst();
             inif++;
+
             if (!blhead) {
+                ifcx = new ifel(ifcx, inif);
                 if (istrue(dd->li_line)) {
+                    ifcx->btaken = true;
                     dp->li_next = dn;
                     delete dd;
                     continue;
                 }
                 blhead = dp;
-                blev = inif;
             }
         }
         else if (lstring::cimatch(ELIF_KW, dd->li_line) ||
@@ -2751,48 +2784,11 @@ sLine::process_conditionals(sParamTab *ptab)
                 dd->var_subst();
             if (!inif)
                 err_msg(dd, ELIF_KW " or " ELSEIF_KW);
-            else if (!blhead) {
-                blhead = dp;
-                blev = inif;
-            }
-            else if (inif == blev && istrue(dd->li_line)) {
-                sLine *tmp = blhead->li_next;
-                blhead->li_next = dn;
-                dd->li_next = 0;
-                sLine::destroy(tmp);
-                dp = blhead;
-                blhead = 0;
-                continue;
-            }
-        }
-        else if (lstring::cimatch(ELSE_KW, dd->li_line)) {
-            if (!inif)
-                err_msg(dd, ELSE_KW);
-            else if (!blhead) {
-                blhead = dp;
-                blev = inif;
-            }
-            else if (inif == blev) {
-                sLine *tmp = blhead->li_next;
-                blhead->li_next = dn;
-                dd->li_next = 0;
-                sLine::destroy(tmp);
-                dp = blhead;
-                blhead = 0;
-                continue;
-            }
-        }
-        else if (lstring::cimatch(ENDIF_KW, dd->li_line)) {
-            if (!inif)
-                err_msg(dd, ENDIF_KW);
-            else {
-                inif--;
-                if (!blhead) {
-                    dp->li_next = dn;
-                    delete dd;
-                    continue;
-                }
-                else if (blev == inif + 1) {
+            else if (inif == ifcx->blev) {
+                if (!blhead)
+                    blhead = dp;
+                else if (!ifcx->btaken && istrue(dd->li_line)) {
+                    ifcx->btaken = true;
                     sLine *tmp = blhead->li_next;
                     blhead->li_next = dn;
                     dd->li_next = 0;
@@ -2803,10 +2799,59 @@ sLine::process_conditionals(sParamTab *ptab)
                 }
             }
         }
+        else if (lstring::cimatch(ELSE_KW, dd->li_line)) {
+            if (!inif)
+                err_msg(dd, ELSE_KW);
+            else if (inif == ifcx->blev) {
+                if (!blhead)
+                    blhead = dp;
+                else if (!ifcx->btaken) {
+                    ifcx->btaken = true;
+                    sLine *tmp = blhead->li_next;
+                    blhead->li_next = dn;
+                    dd->li_next = 0;
+                    sLine::destroy(tmp);
+                    dp = blhead;
+                    blhead = 0;
+                    continue;
+                }
+            }
+        }
+        else if (lstring::cimatch(ENDIF_KW, dd->li_line)) {
+            if (!inif)
+                err_msg(dd, ENDIF_KW);
+            else if (inif == ifcx->blev) {
+                inif--;
+                ifel *x = ifcx;
+                ifcx = ifcx->bnext;
+                delete x;
+
+                if (!blhead) {
+                    dp->li_next = dn;
+                    delete dd;
+                }
+                else {
+                    sLine *tmp = blhead->li_next;
+                    blhead->li_next = dn;
+                    dd->li_next = 0;
+                    sLine::destroy(tmp);
+                    dp = blhead;
+                    blhead = 0;
+                }
+                continue;
+            }
+            else
+                inif--;
+        }
         dp = dd;
     }
     if (inif)
         dp->li_error = lstring::copy("Warning: missing \"" ENDIF_KW "\".");
+    while (ifcx) {
+        ifel *x = ifcx;
+        ifcx = ifcx->bnext;
+        delete x;
+    }
     return (ptab);
 }
 // End of sLine functions.

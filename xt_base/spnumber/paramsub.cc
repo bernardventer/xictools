@@ -48,7 +48,6 @@
 #include "input.h"
 #include "inpline.h"
 #include "ttyio.h"
-#include "reltag.h"
 #include "output.h"
 #include "spnumber/paramsub.h"
 #include "spnumber/spnumber.h"
@@ -64,6 +63,7 @@ struct ParseNode;
 
 
 char *sParamTab::errString = 0;
+void(*sParamTab::pt_set_predefs)(sParamTab*);
 
 namespace {
     char *ptok(char**, char**, char**);
@@ -88,43 +88,6 @@ sParamTab::~sParamTab()
     pt_table->clear_data(&free_param, 0);
     delete pt_table;
     delete pt_rctab;
-}
-
-
-// Add the predefined parameters.  This is called from the
-// constructor.
-//
-// Presently, there are two such parameters, both are read-only.
-//
-// WRSPICE_PROGRAM
-// This is always set (to 1).  It allows testing for WRspice-specific
-// parts in input files with a construct like
-//    .param WRSPICE_PROGRAM=0  $ does nothing in WRspice
-//    .if WRSPICE_PROGRAM=1
-//    <wrspice-specific input>
-//    .else
-//    <other spice input>
-//    .endif
-//
-// WRSPICE_RELEASE
-// This is set to the five-digit release code.
-//
-void
-sParamTab::add_predefs()
-{
-#ifdef WRSPICE
-    sParam *prm = new sParam(lstring::copy("WRSPICE_PROGRAM"),
-        lstring::copy("1"));
-    prm->set_readonly();
-    pt_table->add(prm->name(), prm);
-
-#define STRINGIFY(foo) #foo
-#define XSTRINGIFY(x) STRINGIFY(x)
-    prm = new sParam(lstring::copy("WRSPICE_RELEASE"),
-        lstring::copy(XSTRINGIFY(WRS_RELEASE_NUM)));
-    prm->set_readonly();
-    pt_table->add(prm->name(), prm);
-#endif
 }
 
 
@@ -1138,10 +1101,12 @@ namespace {
             return (0);
         }
         const char *start = str;
+        bool keepws = false;
         if (*str == '\'' || *str == '"') {
             // Quoted.  Keep the quote marks, the quoted quantity is
             // the value.
 
+            keepws = true;
             char c = *str++;
             while (*str) {
                 if (*str == c && *(str-1) != '\\')
@@ -1188,7 +1153,7 @@ namespace {
         char *val = new char[str - start + 1];
         char *n = val;
         for (const char *t = start; t < str; t++) {
-            if (!isspace(*t))
+            if (keepws || !isspace(*t))
                 *n++ = *t;
         }
         *n = 0;

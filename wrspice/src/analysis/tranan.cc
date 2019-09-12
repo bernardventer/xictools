@@ -669,6 +669,10 @@ sTRANint::step(sCKT *ckt, sSTATS *stat)
 // from SPICE2/3.  Make this adjustable?
 #define DELTA_FACTOR 0.125
 
+    // The maximum time step from internal device library code,
+    // computed in the accept functions.
+    double intDevMaxDelta = ckt->CKTdevMaxDelta;
+
     bool first_time_really = t_firsttime;
     for (;;) {
         double olddelta = ckt->CKTdelta;
@@ -695,7 +699,18 @@ sTRANint::step(sCKT *ckt, sSTATS *stat)
 
         int niter = stat->STATnumIter;
         int maxiters = ckt->CKTcurTask->TSKtranMaxIter;
+
         int cverr = ckt->NIiter(maxiters);
+
+        // The bound_step maximum time step set by Verilog-A support,
+        // computed in the load functions.
+        double bound_step = ckt->CKTdevMaxDelta;
+
+        // Set to smallest nonzero value.
+        if (bound_step == 0.0 ||
+                (intDevMaxDelta > 0.0 && intDevMaxDelta < bound_step))
+            ckt->CKTdevMaxDelta = intDevMaxDelta;
+
         stat->STATtimePts++;
         int lastiters = stat->STATnumIter - niter;
         stat->STATtranLastIter = lastiters;

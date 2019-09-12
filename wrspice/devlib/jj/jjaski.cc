@@ -77,6 +77,7 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
         0, // notused
         &&L_JJ_AREA, 
         &&L_JJ_ICS, 
+        &&L_JJ_TEMP, 
 #ifdef NEWLSER
         &&L_JJ_LSER, 
 #endif
@@ -91,6 +92,14 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
         &&L_JJ_NOISE,
 
         &&L_JJ_QUEST_V,
+        &&L_JJ_QUEST_PHS,
+        &&L_JJ_QUEST_PHSN,
+        &&L_JJ_QUEST_PHSF,
+        &&L_JJ_QUEST_PHST,
+        &&L_JJ_QUEST_TCF,
+        &&L_JJ_QUEST_VG,
+        &&L_JJ_QUEST_VL,
+        &&L_JJ_QUEST_VM,
         &&L_JJ_QUEST_CRT,
         &&L_JJ_QUEST_IC,
         &&L_JJ_QUEST_IJ,
@@ -100,6 +109,11 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
         &&L_JJ_QUEST_G0,
         &&L_JJ_QUEST_GN,
         &&L_JJ_QUEST_GS,
+        &&L_JJ_QUEST_GXSH,
+        &&L_JJ_QUEST_RXSH,
+#ifdef NEWLSH
+        &&L_JJ_QUEST_LSHVAL,
+#endif
         &&L_JJ_QUEST_G1,
         &&L_JJ_QUEST_G2,
         &&L_JJ_QUEST_N1,
@@ -145,6 +159,9 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
     L_JJ_ICS:
         data->v.rValue = inst->JJics;
         return (OK);
+    L_JJ_TEMP:
+        data->v.rValue = inst->JJtemp;
+        return (OK);
 #ifdef NEWLSER
     L_JJ_LSER:
         data->v.rValue = inst->JJlser;
@@ -181,6 +198,36 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
         data->v.rValue = (ckt->rhsOld(inst->JJposNode) -
             ckt->rhsOld(inst->JJnegNode));
         return (OK);
+    L_JJ_QUEST_PHS:
+        {
+            double phi = *(ckt->CKTstate0 + inst->JJphase);
+            int pint = *(int *)(ckt->CKTstate0 + inst->JJphsInt);
+            data->v.rValue =  phi + (pint*4)*M_PI;
+        }
+        return (OK);
+    L_JJ_QUEST_PHSN:
+        data->type = IF_INTEGER;
+        data->v.iValue = inst->JJphsN;
+        return (OK);
+    L_JJ_QUEST_PHSF:
+        data->type = IF_INTEGER;
+        data->v.iValue = inst->JJphsF;
+        return (OK);
+    L_JJ_QUEST_PHST:
+        data->v.rValue = inst->JJphsT;
+        return (OK);
+    L_JJ_QUEST_TCF:
+        data->v.rValue = inst->JJtcf;
+        return (OK);
+    L_JJ_QUEST_VG:
+        data->v.rValue = inst->JJvg;
+        return (OK);
+    L_JJ_QUEST_VL:
+        data->v.rValue = inst->JJvless;
+        return (OK);
+    L_JJ_QUEST_VM:
+        data->v.rValue = inst->JJvmore;
+        return (OK);
     L_JJ_QUEST_CRT:
         data->v.rValue = inst->JJcriti;
         return (OK);
@@ -209,6 +256,17 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
     L_JJ_QUEST_GS:
         data->v.rValue = inst->JJgs;
         return (OK);
+    L_JJ_QUEST_GXSH:
+        data->v.rValue = inst->JJgshunt;
+        return (OK);
+    L_JJ_QUEST_RXSH:
+        data->v.rValue = inst->JJgshunt > 0.0 ? 1.0/inst->JJgshunt : 0.0;
+        return (OK);
+#ifdef NEWLSH
+    L_JJ_QUEST_LSHVAL:
+        data->v.rValue = inst->JJlsh;
+        return (OK);
+#endif
     L_JJ_QUEST_G1:
         data->v.rValue = inst->JJg1;
         return (OK);
@@ -259,6 +317,9 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
     case JJ_ICS:
         data->v.rValue = inst->JJics;
         break;
+    case JJ_TEMP:
+        data->v.rValue = inst->JJtemp;
+        break;
 #ifdef NEWLSER
     case JJ_LSER:
         data->v.rValue = inst->JJlser;
@@ -295,6 +356,30 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
         data->v.rValue = (ckt->rhsOld(inst->JJposNode) -
             ckt->rhsOld(inst->JJnegNode));
         break;
+    case JJ_QUEST_PHS:
+        {
+            double phi = *(ckt->CKTstate0 + inst->JJphase);
+            int pint = *(int *)(ckt->CKTstate0 + inst->JJphsInt);
+            data->v.rValue =  phi + (pint*4)*M_PI;
+        }
+        break;
+    case JJ_QUEST_PHSN:
+        data->type = IF_INTEGER;
+        data->v.iValue = inst->JJphsN;
+        break;
+    case JJ_QUEST_PHSF:
+        data->type = IF_INTEGER;
+        data->v.iValue = inst->JJphsF;
+        break;
+    case JJ_QUEST_PHST:
+        data->v.rValue = inst->JJphsT;
+        break;
+    case JJ_QUEST_TCF:
+        data->v.rValue = inst->JJtcg;
+        break;
+    case JJ_QUEST_VG:
+        data->v.rValue = inst->JJvg;
+        break;
     case JJ_QUEST_CRT:
         data->v.rValue = inst->JJcriti;
         break;
@@ -323,6 +408,17 @@ JJdev::askInst(const sCKT *ckt, const sGENinstance *geninst, int which,
     case JJ_QUEST_GS:
         data->v.rValue = inst->JJgs;
         break;
+    case JJ_QUEST_GXSH:
+        data->v.rValue = inst->JJgshunt;
+        break;
+    case JJ_QUEST_RXSH:
+        data->v.rValue = inst->JJgshunt > 0.0 ? 1.0/inst->JJgshunt : 0.0;
+        break;
+#ifdef NEWLSH
+    case JJ_QUEST_LSHVAL:
+        data->v.rValue = inst->JJlsh;
+        break;
+#endif
     case JJ_QUEST_G1:
         data->v.rValue = inst->JJg1;
         break;

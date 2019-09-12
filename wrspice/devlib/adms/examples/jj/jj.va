@@ -49,8 +49,33 @@
 //   legend must also reproduce the markings.
 //-------------------------------------------------------------------------
 
-// Whiteley Research/Synopsys Josephson Junction Model
+// Whiteley Research/Synopsys PWL-RCSJ Josephson Junction Model
 //
+
+// Version 1.33, July 14, 2019 instance read-only parameters gshunt
+//   and lshval have ADMS spec for accessibility in WRspice.
+// Version 1.32, June 26, 2019 added temperature effects:  model
+//   parameters tc, tnom, deftemp, tcfct, instance parameters temp and
+//   (read only) tcf.  The correction factor multiplies icrit and vgap.
+//   Added ADMS spec to most internal variables making them accessible
+//   in WRspice.
+// Version 1.31, May 24, 2019 block name "nparblk" added for HSPICE.
+// Version 1.30, May 23, 2019 fixed typos from last check-in, added
+//   ADMS magic so phase and vdpbak are treated as read-only params.
+//   Added 'n' SFQ pulse emission count read-only instance param.
+// Version 1.29, May 22, 2019 the tsfactor param is now relative to 2pi
+//   instead of pi.  If you set this to X previously, you should now set
+//   it to X/2 for the same results.  New tsaccel parameter for time
+//   step control, allows longer time steps when circuit is quiescent. 
+//   Default is 1.0 (no acceleration), try 2.5 for RSFQ.
+// Version 1.28, May 15, 2019 fixed exponent of PHI0_2PI, typo!
+// Version 1.27, May 9, 2019
+//   Updated the value of PHI0_2PI to NIST latest (05/20/2019).
+// Version 1.26, March 19, 2019
+//   The vshunt support is now conditional on NEWVSHUNT, which is on by
+//   default.  One can now turn off NEWVSHUNT, NEWLSH and NEWLSER and
+//   have only the core model, which can be augmented in a .subckt,
+//   which might be more efficient than the Verilog-A implementation.
 // Version 1.25, March 14, 2019
 //   Changed limits of icrn from 1.5 : 1.9mV to 0.5mV : (icfct*vgap).
 //   Changed upper limit of vshunt from 2mV to (vgap-delv).
@@ -182,16 +207,25 @@
 // This enables series inductance modeling with the LSER parameter.
 `define NEWLSER
 
+// Enable addition of external shunt conductance.
+`define NEWVSHUNT
+
 // Enable series inductance modeling of external shunt resistance.
+`ifdef NEWVSHUNT
 `define NEWLSH
+`endif
+
+// Enable the 'n' SFQ emission count parameter.  Can comment this if
+// you don't do SFQ logic.
+`define NEWNPAR
 
 // Uncomment this to support a phony DC analysis mode by loading JJ as
 // a tiny resistance.  Not recommended.
 //`define fakeDC
 
 // MIT-LL SFQ5EE process, parameters from:
-// Tolpygo et al., IEEE J. Appl. Superconductivity, 26, 1100110, (2016)
-// Tolpygo et al., IEEE J. Appl. Superconductivity, 27, 1100815, (2017)
+// Tolpygo et al., IEEE Trans. Appl. Supercond., vol. 26, 1100110, (2016)
+// Tolpygo et al., IEEE Trans. Appl. Supercond., vol. 27, 1100815, (2017)
 `define C_PER_A_10000  70.0     // ff/um2
 `define I_PER_A_10000 100.0     // uA/um2
 `define IcR_LL          1.65    // mV, critical current * normal resistance
@@ -220,7 +254,7 @@
 //`define Vm      `Vm_HYP
 
 // Phi0/2pi = hbar over 2 e.
-`define PHI0_2PI    3.291086546e-16
+`define PHI0_2PI    3.29105978475453e-16
 
 module jj (n1, n2, ph);
 
@@ -252,7 +286,7 @@ electrical nshint       `P(phase="true");
 // an internal ground-state phase of pi rather than 0.  Such junctions
 // have been made using ferromagnetic barrier materials. 
 parameter integer pijj  = 0 from [0:1]
-    `P(type="model" info="pi junction if set");
+    `P(type="model" info="Pi junction if set");
 
 // Turn on/off quasiparticle branch and critical current.
 parameter integer rtype = 1 from [0:1]
@@ -260,13 +294,28 @@ parameter integer rtype = 1 from [0:1]
 parameter integer cct   = 1 from [0:1]
     `P(type="model" info="Critical current model type");
 
+// Temperature correction
+parameter real tc       = 9.26 from [0.1:280]
+    `P(type="model" info="Superconducting transition temperature Kelvin");
+parameter real tnom     = 4.2 from [0.0:tc]
+    `P(type="model" info="Parameter measurement temperature Kelvin");
+parameter real deftemp  = tnom from [0.0:tc]
+    `P(type="model" info="Defauilt operating temperature Kelvin");
+parameter real tcfct    = 1.74 from [1.5:2.5]
+    `P(type="model" info="Temperature correction parameter");
+
 // Factor used in timestep control.  This is similar to the WRspice
-// dphimax parameter, dphimax/pi = tsfactor.  Smaller values might
+// dphimax parameter, dphimax/(2*pi) = tsfactor.  Smaller values might
 // improve accuracy, but at the expense of longer run time.  If not
 // set explicitly, actual value will be obtained from WRspice.
-`define TSDEFAULT 0.2
+`define TSDEFAULT 0.1
 parameter real tsfactor = `TSDEFAULT from [0.001:1]
-    `P(type="model" info="Time step control factor");
+    `P(type="model" info="Phase change max per time step per 2pi");
+
+// Use longer time steps when JJ voltage is smaller, a value of about
+// 2.5 seems to work best for RSFQ.
+parameter real tsaccel = 1.0 from [1.0:20.0]
+    `P(type="model" info="Ratio max time step to that at dropback voltage");
 
 // Critical current for area=1.
 `define DEF_IC 1.0m
@@ -299,8 +348,6 @@ parameter real icfct    = `M_PI_4 from [0.5:`M_PI_4]
     `P(type="model" info="Ic to Istep ratio");
 aliasparam icfact       = icfct;
 
-// The subgap and normal resistances.  If vshunt is given, a fixed
-// shunt is added so that Ic*Reff = vshunt.
 parameter real vm       = `Vm*1e-3 from [8m:100m]
     `P(type="model" info="Ic * subgap resistance" units="V");
 parameter real rsub     = vm/icrit from [8e-3/icrit:1e-1/icrit]
@@ -311,8 +358,12 @@ parameter real icrn     = `IcR*1e-3 from [0.5m:vgap*icfct]
 parameter real rnorm    = icrn/icrit from [0.5e-3/icrit:(vgap*icfct)/icrit]
     `P(type="model" info="Normal resistance" units="O");
 aliasparam rn           = rnorm;
+`ifdef NEWVSHUNT
+// The subgap and normal resistances.  If vshunt is given, a fixed
+// shunt is added so that Ic*Reff = vshunt.
 parameter real vshunt   = 0 from [0:vgap-delv]
     `P(type="model" info="Ic * shunt resistance voltage" units="V");
+`endif
 `ifdef NEWLSH
 parameter real lsh0   = 0 from [0:2p]
     `P(type="model" info="Shunt inductance constant part" units="H");
@@ -334,6 +385,10 @@ parameter real gmu      = 0.0 from [0.0:1.0]
 parameter real ic_phase = 0 from (-`M_PI:`M_PI)
     `P(type="instance" info="Initial condition phase");
 aliasparam phi          = ic_phase;
+
+// Operating temperature.
+parameter real temp     = deftemp from [0.0:tc]
+    `P(type="instance" info="Operating temperature Kelvin");
 
 // Scaling critical current.
 parameter real ics      = icrit from [icrit/20:icrit*20]
@@ -358,8 +413,29 @@ parameter real lsh      = 0.0 from [0.0:100.0p]
 parameter real area     = 1.0 from [0.05:20.0]
     `P(type="instance" info="Ic scale factor");
 
-real phase, scale, caps, rsubs, rnorms, vless, vmore, i1, i2;
-real vdpbak, start_phase, tsf, ic_scaled, gshunt, lshval;
+// Internal variables.  Those with `P() given are accessible in WRspice
+// as read-only parameters (ADMS feature).
+real vdpbak `P(type="model" info="Dropback voltage");
+real tcf `P(type="instance" info="Temperature correction factor");
+real vgap_t `P(type="instance" info="Temperature-corrected vgap");
+real vless `P(type="instance" info="Lower gap inflection");
+real vmore `P(type="instance" info="Upper gap inflection");
+real phase `P(type="instance" info="Junction phase");
+`ifdef NEWNPAR
+integer n `P(type="instance" info="SFQ emission count");
+`endif
+real caps `P(type="instance" info="Device capacitance");
+real scale `P(type="instance" info="Area ratio");
+real ic_scaled `P(type="instance" info="Scaled and temp. compensated Ic");;
+real rsubs `P(type="instance" info="Device sub-gap resistance");
+real rnorms `P(type="instance" info="Device normal resistance");
+real i1, i2, vth, start_phase, tsf;
+`ifdef NEWVSHUNT
+real gshunt `P(type="instance" info="External VSHUNT shunt conductance");
+`ifdef NEWLSH
+real lshval `P(type="instance" info="Shunt resistor parasitic inductance");
+`endif
+`endif
 `ifdef WRspice
 real SmallSigL;
 integer pmode;
@@ -394,6 +470,7 @@ analog begin
             end
         else
             vdpbak = halfvg;
+        vth = vdpbak/tsaccel;
 
         // dphiMax
         //   If simulator returns nonzero, the dphimax .option is
@@ -402,7 +479,7 @@ analog begin
         //   is used if not supported by the simulator.
         //   Requires WRspice-4.3.3.
         //
-        tsf = $simparam("dphiMax", 0.0)/`M_PI;
+        tsf = $simparam("dphiMax", 0.0)/(2*`M_PI);
         if (tsf < 1e-3 || tsfactor != `TSDEFAULT)
             tsf = tsfactor;
 `ifdef insideADMS
@@ -412,30 +489,36 @@ analog begin
         real halfdv;
 `endif
 
+        // Temperature correction
+        tcf = tanh(tcfct*sqrt(tc/(temp+1e-3) - 1))/
+            tanh(tcfct*sqrt(tc/(tnom+1e-3)-1));
+        vgap_t = vgap*tcf;
+
         phase = 0.0;
         if (ics != icrit)
             begin
             scale = ics/icrit;
-            ic_scaled = ics;
+            ic_scaled = tcf*ics;
             end
         else
             begin
             scale = area;
-            ic_scaled = scale*icrit;
+            ic_scaled = tcf*scale*icrit;
             end
 
         caps = cap*(scale*(1-cmu) + sqrt(scale)*cmu);
         rsubs = rsub/(scale*(1-gmu) + sqrt(scale)*gmu);
         rnorms = rnorm/(scale*(1-gmu) + sqrt(scale)*gmu);
         halfdv = delv/2.0;
-        vless = vgap - halfdv;
-        vmore = vgap + halfdv;
+        vless = vgap_t - halfdv;
+        vmore = vgap_t + halfdv;
         i1 = vless/rsubs;
         i2 = ic_scaled/icfct;
         start_phase = ic_phase;
 `ifdef WRspice
         SmallSigL = 0.0;
 `endif
+`ifdef NEWVSHUNT
         gshunt=0.0;
 `ifdef NEWLSH
         lshval=0.0;
@@ -455,6 +538,7 @@ analog begin
                     lshval = lsh0 + lsh1/gshunt;
 `endif
             end
+`endif
 
         // Interface parameter passed to model from simulator using
         // the Verilog $simparam system function.  At present, only
@@ -516,6 +600,7 @@ analog begin
             if (rtype == 1)
                 I(br) <+ V(br)/rsubs;
 
+`ifdef NEWVSHUNT
             if (vshunt > 1u)
                 begin
 `ifdef NEWLSH
@@ -532,6 +617,7 @@ analog begin
 `endif
 `endif
                 end
+`endif
 
             if ($port_connected(ph))
                 begin
@@ -671,6 +757,7 @@ analog begin
                 I(br) <+ (V(br)/avj)*(i1 + i2 + (avj - vmore)/rnorms);
             end
 
+`ifdef NEWVSHUNT
         if (vshunt > 1u)
             begin
 `ifdef NEWLSH
@@ -687,6 +774,7 @@ analog begin
 `endif
 `endif
             end
+`endif
 
 `ifdef NEWLSER
         if (lser > 0.0)
@@ -700,10 +788,36 @@ analog begin
         // oscillation and limit the time step accordingly.
         //
         vtmp = avj;
-        if (vtmp < vdpbak)
-            vtmp = vdpbak;
-        $bound_step(`M_PI*tsf*`PHI0_2PI/vtmp);
+        if (vtmp < vth)
+            vtmp = vth;
+        $bound_step(2*`M_PI*tsf*`PHI0_2PI/vtmp);
+
+`ifdef NEWNPAR
+        // Compute the SFQ emission count, used for pass/fail testing
+        // of SFQ circuits.
+        begin : nparblk
+        real pp, twopi;
+        integer pint;
+        twopi = `M_PI + `M_PI;
+        if (phase >= 0.0)
+            begin
+            pint = phase/twopi;
+            pp = phase - pint*twopi;
+            if (pp > `M_PI + `M_PI_4)
+                pint = pint + 1;
+            end
+        else
+            begin
+            pint = phase/twopi;
+            pp = phase - pint*twopi + twopi;
+            if (pp < `M_PI - `M_PI_4)
+                pint = pint - 1;
+            end
+        n = abs(pint);
         end
+`endif
+        end
+
     else
         begin
         $error("JJ.va model:  unknown or unsupported analysis.");

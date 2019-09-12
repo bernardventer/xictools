@@ -2136,9 +2136,9 @@ GTKfilePopup::fs_open_idle(void *arg)
 // true.  The idle function looks at the actual widget state and
 // responds accordingly.
 //
-bool
+int
 GTKfilePopup::fs_tree_select_proc(GtkTreeSelection*, GtkTreeModel*,
-    GtkTreePath*, bool, void *data)
+    GtkTreePath*, int, void *data)
 {
     GTKfilePopup *fs = static_cast<GTKfilePopup*>(data);
     if (!fs)

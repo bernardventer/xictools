@@ -219,8 +219,18 @@ SRCdev::load(sGENinstance *in_inst, sCKT *ckt)
                 double rhs = 0;
 
                 sDCTAN *dct = dynamic_cast<sDCTAN*>(ckt->CKTcurJob);
+#ifdef ALLPRMS
+                // If sweeping the DC value (the default parameter)
+                // take the source as a DC source.
+                if (dct &&
+                        ((dct->JOBdc.elt(0) == inst &&
+                            dct->JOBdc.param(0) == SRC_DC) ||
+                        (dct->JOBdc.elt(1) == inst &&
+                            dct->JOBdc.param(1) == SRC_DC)))
+#else
                 if (dct && (dct->JOBdc.elt(0) == inst ||
                         dct->JOBdc.elt(1) == inst))
+#endif
                     rhs = ckt->CKTsrcFact * inst->SRCdcValue;
                 else {
                     BEGIN_EVAL

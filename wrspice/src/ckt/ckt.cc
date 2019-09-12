@@ -219,10 +219,8 @@ sGENmodel::~sGENmodel()
 
 int sCKT::CKTstepDebug = 0;
 
-sCKT::sCKT()
+sCKT::sCKT() : sCKTPOD()
 {
-    memset(this, 0, sizeof(sCKT));
-
     CKTsrcFact = 1.0;
     CKTorder = 1;
     CKTstat = new sSTATS();
@@ -572,6 +570,7 @@ sCKT::doTask(bool reset)
                 CKTstat->STATloadThreads = 0;
                 CKTstat->STATloopThreads = 0;
 #endif
+                CKTstat->STATruns++;
                 error = IFanalysis::analysis(i)->anFunc(this, reset);
 #ifdef HAVE_GETRUSAGE
                 getrusage(RUSAGE_SELF, &ruse2);
@@ -613,7 +612,6 @@ sCKT::doTaskSetup()
 {
     CKTdelta = 0.0;
     CKTtime = 0.0;
-    CKTcurrentAnalysis = 0;
 
     CKTpreload = 1; // do preload
     // normal reset
@@ -963,6 +961,13 @@ sCKT::inst2Node(sGENinstance *instPtr, int term, sCKTnode **node,
 int
 sCKT::load(bool noclear)
 {
+    // This is optionally set in the device code to limit next step
+    // size.  This is used by the JJ model (set in accept()), and by
+    // the $bound_step() Verilog-A function (set in load()).  The
+    // value is used to limit the next time step.
+    //
+    CKTdevMaxDelta = 0.0;
+
     double startTime = OP.seconds();
     int size = CKTmatrix->spGetSize(1);
     memset(CKTrhs, 0, (size+1)*sizeof(double));

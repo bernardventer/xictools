@@ -97,8 +97,8 @@ namespace gtkinterf {
         static void fs_quit_proc(GtkWidget*, void*);
         static int fs_focus_hdlr(GtkWidget*, GdkEvent*, void*);
         static int fs_open_idle(void*);
-        static bool fs_tree_select_proc(GtkTreeSelection*, GtkTreeModel*,
-            GtkTreePath*, bool, void*);
+        static int fs_tree_select_proc(GtkTreeSelection*, GtkTreeModel*,
+            GtkTreePath*, int, void*);
         static int fs_sel_test_idle(void*);
         static int fs_tree_collapse_proc(GtkTreeView*, GtkTreeIter*,
             GtkTreePath*, void*);

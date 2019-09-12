@@ -261,9 +261,10 @@ enum MPform
 
 enum MPrange
 {
-    MPatwhen,       // applies at defined value
+    MPafter,        // appies at or after defined value
+    MPat,           // applies at defined value only (strobing)
     MPbefore,       // applies before defined value
-    MPafter         // appies after defined value
+    MPwhen          // appies at or after defined value (same as after)
 };
 
 struct sMpoint
@@ -293,12 +294,15 @@ struct sMpoint
             t_active        = false;
             t_ready         = false;
             t_found_local   = false;
+            t_found_state   = false;
             t_offset_set    = false;
             t_last_saved    = false;
             t_td_given      = false;
             t_ptmode        = false;
+            t_strobe        = false;
+            t_dstrobe       = false;
             t_type          = MPunknown;
-            t_range         = MPatwhen;
+            t_range         = MPwhen;
         }
 
     ~sMpoint();
@@ -310,6 +314,8 @@ struct sMpoint
     int indx()                  { return (t_indx); }
     bool active()               { return (t_active); }
     bool ready()                { return (t_ready); }
+    bool strobe()               { return (t_strobe); }
+    bool dstrobe()              { return (t_dstrobe); }
 
     void reset()
         {
@@ -323,6 +329,7 @@ struct sMpoint
             t_fall_cnt = 0;
             t_ready = false;
             t_found_local = false;
+            t_found_state = false;
             t_offset_set = false;
             t_last_saved = false;
             if (t_conj)
@@ -361,13 +368,17 @@ private:
     bool t_active;          // This is active, if not skip it.
     bool t_ready;           // The measure point was found for all conj.
     bool t_found_local;     // The measure point was found for this.
+    bool t_found_state;     // The state to return when found.
     bool t_offset_set;      // This is initialized.
     bool t_last_saved;      // Last values of expressions saved.
     bool t_ptmode;          // Input in points, else absolute.
     bool t_td_given;        // Offset was given.
+    bool t_strobe;          // Strobe mode set.
+    bool t_dstrobe;         // Auto strobe at delay mode set.
     unsigned char t_type;   // Syntax type, MPform.
     unsigned char t_range;  // Before/at/after, MPrange.
 };
+
 
 enum Mfunc { Mmin, Mmax, Mpp, Mavg, Mrms, Mpw, Mrft, Mfind };
 
@@ -406,11 +417,21 @@ struct sMfunc
 
     void print(sLstr&);
 
+    bool mmin(sDataVec*, int, int, double*, double*);
+    bool mmax(sDataVec*, int, int, double*, double*);
+    bool mpp(sDataVec*, int, int, double*, double*);
+    bool mavg(sDataVec*, int, int, double*, double*);
+    bool mrms(sDataVec*, int, int, double*, double*);
+    bool mpw(sDataVec*, int, int, double*, double*);
+    bool mrft(sDataVec*, int, int, double*, double*);
+
+private:
     Mfunc f_type;       // type of job
     bool f_error;       // set if expr evaluation fails
     sMfunc *f_next;     // pointer to next job
     const char *f_expr; // expression to evaluate
     double f_val;       // result of measurement
+
 };
 
 
@@ -492,19 +513,16 @@ struct sRunopMeas : public sRunop
     bool parse(const char*, char**);
     void reset(sPlot*);
     bool check_measure(sRunDesc*);
-    bool do_measure(sRunDesc*);
+    bool do_measure();
     bool measure(sDataVec**, int*);
     bool update_plot(sDataVec*, int);
     char *print_meas();
 
 private:
     void addMeas(Mfunc, const char*);
-    double startval(sDataVec*, sDataVec*);
-    double endval(sDataVec*, sDataVec*);
-    double findavg(sDataVec*, sDataVec*);
-    double findrms(sDataVec*, sDataVec*);
-    double findpw(sDataVec*, sDataVec*);
-    double findrft(sDataVec*, sDataVec*);
+    sDataVec *evaluate(const char*);
+    double startval(sDataVec*);
+    double endval(sDataVec*);
 
     sMpoint ro_start;
     sMpoint ro_end;
@@ -537,6 +555,8 @@ struct sRunopStop : public sRunop
 
         ro_exec                 = 0;
         ro_call                 = 0;
+        ro_offs                 = 0.0;
+        ro_per                  = 0.0;
         ro_analysis             = 0;
         ro_found_rises          = 0;
         ro_found_falls          = 0;
@@ -546,6 +566,8 @@ struct sRunopStop : public sRunop
         ro_stop_skip            = false;
         ro_stop_flag            = false;
         ro_end_flag             = false;
+        ro_silent               = false;
+        ro_repeating            = false;
 
         parse(str, errstr);
     }
@@ -567,6 +589,7 @@ struct sRunopStop : public sRunop
     bool stop_done()            { return (ro_stop_done); }
     bool stop_flag()            { return (ro_stop_flag); }
     bool end_flag()             { return (ro_end_flag); }
+    bool silent()               { return (ro_silent); }
     void nostop()               { ro_stop_flag = false; ro_end_flag = false; }
 
     void print(char**);         // Print, in string if given, the runop msg.
@@ -585,6 +608,8 @@ private:
 
     const char *ro_exec;        // command to execute when measure complete
     const char *ro_call;        // function to call when measure comp[lete
+    double ro_offs;             // offset for repeat
+    double ro_per;              // period for repeat
     int ro_analysis;            // type index of analysis 
     int ro_found_rises;         // number of rising crossings
     int ro_found_falls;         // number of falling crossings
@@ -594,6 +619,8 @@ private:
     bool ro_stop_skip;          // parse error so skip
     bool ro_stop_flag;          // pause analysis when done
     bool ro_end_flag;           // terminate analysis when done
+    bool ro_silent;             // don't print stop message
+    bool ro_repeating;          // repeating exec/call periodically
 };
 
 #endif // RUNOP_H

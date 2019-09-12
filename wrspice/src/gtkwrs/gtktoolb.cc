@@ -2446,8 +2446,7 @@ GTKtoolbar::open_proc(GtkWidget*, void*, unsigned)
 namespace {
     // Source circuit, passed to pop-up.
     //
-    void
-    source_cb(const char *fname, void*)
+    void source_cb(const char *fname, void*)
     {
         if (fname && *fname) {
             wordlist wl;
@@ -2484,8 +2483,7 @@ GTKtoolbar::source_proc(GtkWidget*, void*, unsigned)
 namespace {
     // Load rawfile, passed to pop-up.
     //
-    void
-    load_cb(const char *fname, void*)
+    void load_cb(const char *fname, void*)
     {
         if (fname && *fname) {
             wordlist wl;

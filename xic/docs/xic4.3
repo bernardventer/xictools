@@ -157,6 +157,58 @@ IMPORTANT -- Windows notes
 End of general info.
 
 ===============================================================================
+xic-4.3.8  8/5/2019
+Current Release
+
+CHANGES AND NEW FEATURES
+------- --- --- --------
+
+* Internal code refactoring for better maintainability.
+
+* Internal code changes to avoid compiler warnings and faults from
+  new compilers.
+
+* OpenAccess Support
+
+    The OA TCL pcell example now works in Xic.  One can place,
+    remaster, etc.  Added a debug print of the PCell evaluator name.
+
+* Misc. Changes
+
+    Now just append ".cir" to the cell name to create the default
+    SPICE dump file name.  Previously anything after a final '.' was
+    stripped before appending "cir".
+
+    When entering an analysis string for the run and deck buttons,
+    leading periods are now ignored, e.g. ".tran" and "tran" are
+    equivalent.
+
+
+BUGS FIXED
+---- -----
+
+* Fixed a bug that prevented the Place button operation from Content
+  windows from the OA Libraries pop-up from working except for
+  libraries defined in the top level lib.defs file.
+
+* Fixed:  for RPM distributions, wr_install needed to be run twice to
+  properly update an existing installation.
+
+* Note regarding Debian and warnings about missing Adwaita theme.  User
+  can add this theme:
+
+  sudo apt install gnome-themes-extra
+
+* Eliminated a spurious OA message that appeared sometimes when saving
+  native cells.
+
+* Changes to the OpenAccess interface to avoid cell name clashes with
+  Xic device library names.  Many cells in the analogLib couldn't be
+  opened or placed from the Contents Listing, "oa_" is now prepended
+  to the OA cell name to avoid clashes.
+
+
+-------------------------------------------------------------------------------
 xic-4.3.7  3/11/2019
 Current Release
 

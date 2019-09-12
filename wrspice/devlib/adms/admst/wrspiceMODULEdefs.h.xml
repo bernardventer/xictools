@@ -617,15 +617,22 @@ inline double _d1_pow(double x,double y)   { return x==0.0?0.0:log(x)*pow(x,y); 
     <admst:text format="\n$(indent)// Variables\n"/>
     <admst:for-each select="variable[input='no' and (scope='global_instance' or
         (parametertype='instance' and not(nilled(attribute))))]">
-      <admst:if test="[minsize=maxsize]">
-        <admst:text format="$(indent)%(vtype(.)) %(name);\n"/>
-      </admst:if>
-      <!-- array support 111217 -->
-      <admst:if test="[minsize!=maxsize]">
-        <admst:value-of select="name"/>
-        <admst:apply-templates select="." match="math:asizeval"/>
-        <admst:text format="$(indent)%(vtype(.)) %s[$leftval];\n"/>
-      </admst:if>
+      <admst:variable name="vv" value="%(name)"/>
+      <admst:choose>
+        <admst:when test="$instance_vars[name=$vv]">
+        </admst:when>
+        <admst:otherwise>
+          <admst:if test="[minsize=maxsize]">
+            <admst:text format="$(indent)%(vtype(.)) %(name);\n"/>
+          </admst:if>
+          <!-- array support 111217 -->
+          <admst:if test="[minsize!=maxsize]">
+            <admst:value-of select="name"/>
+            <admst:apply-templates select="." match="math:asizeval"/>
+            <admst:text format="$(indent)%(vtype(.)) %s[$leftval];\n"/>
+          </admst:if>
+        </admst:otherwise>
+      </admst:choose>
     </admst:for-each>
     <admst:if test="$instance_vars">
       <admst:for-each select="$instance_vars">
@@ -659,7 +666,7 @@ inline double _d1_pow(double x,double y)   { return x==0.0?0.0:log(x)*pow(x,y); 
     <admst:text format="$(indent)double NOISEvar[NSTATVARS][$(moduc)NSRCS];\n"/>
   </admst:if>
 
-  <admst:if test="[$LIMPRED='yes']">
+  <admst:if test="[$package_predictor='yes']">
     <!-- These are post-limited or predicted node voltages. -->
     <admst:text format="\n$(indent)// Limiting and prediction.\n"/>
     <admst:for-each select="node[grounded='no']">
@@ -818,7 +825,7 @@ inline double _d1_pow(double x,double y)   { return x==0.0?0.0:log(x)*pow(x,y); 
 
   <!-- Add defines for instance state variables -->
   <admst:text format="\n// Indices into state table for this device.\n"/>
-  <admst:if test="[$LIMPRED='yes']">
+  <admst:if test="[$package_predictor='yes']">
     <!--
        Save an entry for each node.  This will be used for limiting
        and predicting.
@@ -917,15 +924,24 @@ inline double _d1_pow(double x,double y)   { return x==0.0?0.0:log(x)*pow(x,y); 
     <admst:text format="\n$(indent)// Variables\n"/>
     <admst:for-each select="variable[input='no' and (scope='global_model' or
         (parametertype='model' and not(nilled(attribute))))]">
-      <admst:if test="[minsize=maxsize]">
-        <admst:text format="$(indent)%(vtype(.)) %(name);\n"/>
-      </admst:if>
-      <!-- array support 111217 -->
-      <admst:if test="[minsize!=maxsize]">
-        <admst:value-of select="name"/>
-        <admst:apply-templates select="." match="math:asizeval"/>
-        <admst:text format="$(indent)%(vtype(.)) %s[$leftval];\n"/>
-      </admst:if>
+
+      <admst:variable name="vv" value="%(name)"/>
+      <admst:choose>
+        <admst:when test="$model_vars[name=$vv]">
+        </admst:when>
+        <admst:otherwise>
+          <admst:if test="[minsize=maxsize]">
+            <admst:text format="$(indent)%(vtype(.)) %(name);\n"/>
+          </admst:if>
+          <!-- array support 111217 -->
+          <admst:if test="[minsize!=maxsize]">
+            <admst:value-of select="name"/>
+            <admst:apply-templates select="." match="math:asizeval"/>
+            <admst:text format="$(indent)%(vtype(.)) %s[$leftval];\n"/>
+          </admst:if>
+        </admst:otherwise>
+      </admst:choose>
+
     </admst:for-each>
     <admst:if test="$model_vars">
       <admst:for-each select="$model_vars">

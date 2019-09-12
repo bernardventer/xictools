@@ -55,6 +55,7 @@ JJdev::setInst(int param, IFdata *data, sGENinstance *geninst)
         0, // notused
         &&L_JJ_AREA, 
         &&L_JJ_ICS, 
+        &&L_JJ_TEMP, 
 #ifdef NEWLSER
         &&L_JJ_LSER, 
 #endif
@@ -69,6 +70,14 @@ JJdev::setInst(int param, IFdata *data, sGENinstance *geninst)
         &&L_JJ_NOISE};
 
         // &&L_JJ_QUEST_V,
+        // &&L_JJ_QUEST_PHS,
+        // &&L_JJ_QUEST_PHSN,
+        // &&L_JJ_QUEST_PHSF,
+        // &&L_JJ_QUEST_PHST,
+        // &&L_JJ_QUEST_TCF,
+        // &&L_JJ_QUEST_VG,
+        // &&L_JJ_QUEST_VL,
+        // &&L_JJ_QUEST_VM,
         // &&L_JJ_QUEST_CRT,
         // &&L_JJ_QUEST_IC,
         // &&L_JJ_QUEST_IJ,
@@ -78,11 +87,27 @@ JJdev::setInst(int param, IFdata *data, sGENinstance *geninst)
         // &&L_JJ_QUEST_G0,
         // &&L_JJ_QUEST_GN,
         // &&L_JJ_QUEST_GS,
-        // &&L_JJ_QUEST_G1,
-        // &&L_JJ_QUEST_G2,
-        // &&L_JJ_QUEST_N1,
-        // &&L_JJ_QUEST_N2,
-        // &&L_JJ_QUEST_NP};
+        // &&L_JJ_QUEST_GXSH,
+        // &&L_JJ_QUEST_RXSH,
+//#ifdef NEWLSH
+        //&&L_JJ_QUEST_LSHVAL,
+//#endif
+        //&&L_JJ_QUEST_G1,
+        //&&L_JJ_QUEST_G2,
+        //&&L_JJ_QUEST_N1,
+        //&&L_JJ_QUEST_N2,
+        //&&L_JJ_QUEST_NP
+//#ifdef NEWLSER
+        //,
+        //&&L_JJ_QUEST_NI,
+        //&&L_JJ_QUEST_NB
+//#endif
+//#ifdef NEWLSH
+        //,
+        //&&L_JJ_QUEST_NSHI,
+        //&&L_JJ_QUEST_NSHB
+//#endif
+        //};
 
     if ((unsigned int)param > JJ_NOISE)
         return (E_BADPARM);
@@ -103,6 +128,10 @@ JJdev::setInst(int param, IFdata *data, sGENinstance *geninst)
     L_JJ_ICS:
         inst->JJics = value->rValue;
         inst->JJicsGiven = true;
+        return (OK);
+    L_JJ_TEMP:
+        inst->JJtemp = value->rValue;
+        inst->JJtempGiven = true;
         return (OK);
 #ifdef NEWLSER
     L_JJ_LSER:
@@ -160,6 +189,10 @@ JJdev::setInst(int param, IFdata *data, sGENinstance *geninst)
     case JJ_ICS:
         inst->JJics = value->rValue;
         inst->JJicsGiven = true;
+        break;
+    case JJ_TEMP:
+        inst->JJtemp = value->rValue;
+        inst->JJtempGiven = true;
         break;
 #ifdef NEWLSER
     case JJ_LSER:
