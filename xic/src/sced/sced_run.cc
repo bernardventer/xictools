@@ -474,11 +474,94 @@ inductexOUT(char * cirIN, char * cirOUT)
         fputs(VecTest,pOUT);
         np++;
     }
+    PortID.clear();
     fclose (pIN);
     fclose (pOUT);
     free (INbuff);
     return;
 }
+
+//-----------------------------------------------------------------------------
+// The Parse JoSIM Input.
+// 
+// Dump the .cir file in a format compatible with JoSIM.
+// 
+
+void ParseJosim(char * cirIN, char * cirOUT)
+{
+    char JosimString [256];
+    char ParLineJJ [256];
+    char PlotVol [256];
+    char PlotPhase [256];
+    // char PlotCurrent [256];
+
+    char * INbuffJJ = LoadBuf(cirIN); 
+    FILE *jOUT = fopen (cirOUT , "w");  
+    FILE *jIN = fopen (cirIN , "r");
+
+    std::vector<std::string> PlotData;   
+    std::vector<std::string> PlotJJ;
+    // std::vector<std::string> PlotTest;
+    
+
+    while ( fgets (JosimString , 256 , jIN) != NULL ){
+        if(!(strncmp(JosimString,".plot",5))){         
+            strcpy(ParLineJJ,JosimString);
+            char *tokens = strtok (ParLineJJ," v()\n");     // .plot
+            tokens = strtok (NULL," v()\n");                // tran
+
+            for(tokens = strtok (NULL," v()\n");tokens != NULL;tokens = strtok (NULL," v()\n"))
+            {
+                PlotData.push_back(tokens);
+            }
+        }
+        else
+        {
+            fputs(JosimString,jOUT);
+        }
+        if (!(strncmp(JosimString,"B",1))){
+            strcpy(ParLineJJ,JosimString);
+            char *tokenb = strtok (ParLineJJ," ");
+            PlotJJ.push_back(tokenb);
+            tokenb = strtok (NULL," ");
+            tokenb = strtok (NULL," ");
+            tokenb = strtok (NULL," ");
+            PlotJJ.push_back(tokenb);
+        }   
+    }
+    // Add ports to output file
+    int kp = 0;
+    // strcpy(PlotCurrent,".plot ");
+    
+    std::vector<std::string>::iterator i;
+    std::vector<std::string>::iterator j;
+    for ( j = PlotData.begin() ; j < PlotData.end() ; ++j ){
+        i = std::find (PlotJJ.begin(), PlotJJ.end(), PlotData[kp]); 
+        if (i != PlotJJ.end())
+        {
+            strcpy(PlotPhase,".plot PHASE ");
+            strcat(PlotPhase,PlotJJ[i - PlotJJ.begin() - 1].c_str());
+            strcat(PlotPhase," \n");
+            fputs(PlotPhase,jOUT);
+        }
+        else //add branch
+        {
+            strcpy(PlotVol,".plot tran ");
+            strcat(PlotVol,"v(");
+            strcat(PlotVol, PlotData[kp].c_str());
+            strcat(PlotVol,") \n");
+            fputs(PlotVol,jOUT);
+        }
+        kp++;
+    }
+    PlotData.clear();
+    PlotJJ.clear();
+    fclose (jIN);
+    fclose (jOUT);
+    free (INbuffJJ);
+    return;
+}
+
 
 //-----------------------------------------------------------------------------
 // The RUN WRspice command.
@@ -558,7 +641,27 @@ runJoSIMExec(CmdDesc* cmd)
     SCD()->dumpSpiceFile(filename);
     PL()->ShowPrompt("DONE");
 
-    const char *JoSim_file = "josim";
+    // create path for JoSIM output file 
+    char oubuf[256];
+    strcpy(oubuf, Tstring(DSP()->CurCellName()));
+    char *scj;
+    if ((scj = strrchr(oubuf, '.')) != 0) {
+        if (!strcmp(scj, "_josim.cir"))
+            strcpy(scj, "_josim.deck");
+        else
+            strcpy(scj, "_josim.cir");
+    }
+    else
+        strcat(oubuf, "_josim.cir");
+
+    char *outJJ = pathlist::expand_path(oubuf, true, true);
+    outJJ = lstring::strip_space(outJJ);
+    pathlist::path_canon(outJJ);
+
+    char *cirJJ = pathlist::expand_path(outJJ, false, true);
+    //delete [] sc
+
+    const char *JoSim_file = "josim-cli";
     const char *JoSim_file_cap = "JoSIM";
     char *inJoSIM = pathlist::expand_path("/usr/local/bin", false, true);
 
@@ -569,7 +672,7 @@ runJoSIMExec(CmdDesc* cmd)
     bool inJoSIMlib = false;
     // Choose the location of JoSIM
     if(JoSIM_check_linux)
-        inJoSIM = pathlist::expand_path("/usr/local/bin/josim", false, true);
+        inJoSIM = pathlist::expand_path("/usr/local/bin/josim-cli", false, true);
     else if(JoSIM_check_mac)
         inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM", false, true);
     else {
@@ -602,11 +705,12 @@ runJoSIMExec(CmdDesc* cmd)
         return;
     }
     if (!cpid) {
+        ParseJosim(filename, cirJJ); // parse josim file
         if(inJoSIMlib){ 
-            execlp("josim","josim","-c", "1", "-o","output", filename, (char *) 0);
+            execlp("josim-cli","josim-cli","-c", "1", "-o","output", cirJJ, (char *) 0);
         }
         else      
-            execl(inJoSIM,inJoSIM,"-c", "1", "-o","output", filename, (char *) 0); 
+            execl(inJoSIM,inJoSIM,"-c", "1", "-o","output", cirJJ, (char *) 0); 
         Errs()->sys_error("JoSIM execution failed");
         return;
     }
@@ -789,5 +893,15 @@ cSced::RunCom(int Run_option,CmdDesc* cmd)
             return;
         break;
     }
+
+
+    // typedef std::map<std::string, std::string> StringMap;
+    // StringMap map;
+    // map.insert(StringMap::value_type("",""));
+    // StringMap::iterator it = map.find("");
+    // std::strimg value = it->second;
+
+
 }
+
 
