@@ -493,6 +493,7 @@ void ParseJosim(char * cirIN, char * cirOUT)
     char ParLineJJ [256];
     char PlotVol [256];
     char PlotPhase [256];
+    bool CirBreak = 0;
     // char PlotCurrent [256];
 
     char * INbuffJJ = LoadBuf(cirIN); 
@@ -507,10 +508,10 @@ void ParseJosim(char * cirIN, char * cirOUT)
     while ( fgets (JosimString , 256 , jIN) != NULL ){
         if(!(strncmp(JosimString,".plot",5))){         
             strcpy(ParLineJJ,JosimString);
-            char *tokens = strtok (ParLineJJ," v()\n");     // .plot
-            tokens = strtok (NULL," v()\n");                // tran
+            char *tokens = strtok (ParLineJJ," v()\n\"");     // .plot
+            tokens = strtok (NULL," v()\n\"");                // tran
 
-            for(tokens = strtok (NULL," v()\n");tokens != NULL;tokens = strtok (NULL," v()\n"))
+            for(tokens = strtok (NULL," v()\n\"");tokens != NULL;tokens = strtok (NULL," v()\n\""))
             {
                 PlotData.push_back(tokens);
             }
@@ -519,7 +520,11 @@ void ParseJosim(char * cirIN, char * cirOUT)
         {
             fputs(JosimString,jOUT);
         }
-        if (!(strncmp(JosimString,"B",1))){
+        if(!(strncmp(JosimString,".subckt",7))){ // skip sub-circuit 
+            CirBreak = 1;
+        }
+
+        if (!(strncmp(JosimString,"B",1)) && !CirBreak){
             strcpy(ParLineJJ,JosimString);
             char *tokenb = strtok (ParLineJJ," ");
             PlotJJ.push_back(tokenb);

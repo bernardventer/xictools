@@ -191,6 +191,7 @@ void cSced::showOutputExec(CmdDesc *cmd)
         ////////////////////////////////////////////////////////////////////////////////////
         char JosimSTR [256];
         char StrLine [256];
+        bool PltFlag = 0;
 
         FILE *OutJosim = fopen (cirJJ , "r"); 
 
@@ -199,7 +200,11 @@ void cSced::showOutputExec(CmdDesc *cmd)
 
         //Parse Josim file
         while ( fgets (JosimSTR , 256 , OutJosim) != NULL ){
-            if (!(strncmp(JosimSTR,"B",1))){
+
+            if(!(strncmp(JosimSTR,".subckt",7))){ // skip sub-circuit 
+            PltFlag = 1;
+            }
+            if (!(strncmp(JosimSTR,"B",1)) && !PltFlag){
                 strcpy(StrLine,JosimSTR);
                 char *Tokens = strtok (StrLine," ");
                 JosimData.push_back(Tokens);
