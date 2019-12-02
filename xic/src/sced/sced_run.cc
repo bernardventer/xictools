@@ -862,10 +862,10 @@ void runInductExec(CmdDesc* cmd)
         if (!cpid) {
             inductexOUT(cirfile,cirIDX); //run cir to inductex cir
             if(inIDXlib){
-                execlp("inductex","inductex",GDSloc, "-l", inIDX,"-i", "IDXout.inp",methodIDX,"-n", cirIDX, (char *) 0); // replace cirTEST with cirfile and select ldf file option? //"mitll_sfq5ee_set1.ldf"
+                execlp("inductex","inductex",GDSloc, "-l", inIDX,"-i", "IDXout.inp",methodIDX,"-n", cirIDX,"-xic", (char *) 0); // replace cirTEST with cirfile and select ldf file option? //"mitll_sfq5ee_set1.ldf"
             }
             else
-                execl(Induct,Induct,GDSloc, "-l", inIDX,"-i", "IDXout.inp",methodIDX,"-n", cirIDX, (char *) 0); // replace cirTEST with cirfile and select ldf file option? //"mitll_sfq5ee_set1.ldf"
+                execl(Induct,Induct,GDSloc, "-l", inIDX,"-i", "IDXout.inp",methodIDX,"-n", cirIDX,"-xic", (char *) 0); // replace cirTEST with cirfile and select ldf file option? //"mitll_sfq5ee_set1.ldf"
             Errs()->sys_error("Inductex Execution Failed");
             return;
         }   
