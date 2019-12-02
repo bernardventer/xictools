@@ -4576,7 +4576,14 @@ sMark_Fence::show(WindowDesc *wdesc, bool display)
         int x1, y1, x2, y2;
         wdesc->LToP(mX, mY, x1, y1);
         wdesc->LToP(mEndX, mEndY, x2, y2);
-        if (x1 == x2) {
+        if (x1 == x2 && y1 == y2) {
+            const int p = DSP_GRIP_MARK_PIXELS;
+            show_line(wdesc, x1-p, y1, x1, y1+p);
+            show_line(wdesc, x1, y1+p, x1+p, y1);
+            show_line(wdesc, x1+p, y1, x1, y1-p);
+            show_line(wdesc, x1, y1-p, x1-p, y1);
+        }
+        else if (x1 == x2) {
             show_line(wdesc, x1-1, y1, x1-1, y2);
             show_line(wdesc, x1+1, y1, x1+1, y2);
         }
@@ -4585,11 +4592,12 @@ sMark_Fence::show(WindowDesc *wdesc, bool display)
             show_line(wdesc, x1, y1+1, x2, y1+1);
         }
         else {
-            show_line(wdesc, x1, y1, x2, y2);
+            show_line(wdesc, x1, y1-1, x2, y2-1);
+            show_line(wdesc, x1, y1+1, x2, y2+1);
         }
     }
     else {
-        int delta = (int)(2.0/wdesc->Ratio());
+        int delta = (int)(DSP_GRIP_MARK_PIXELS/wdesc->Ratio());
         BBox BB(mX, mY, mEndX, mEndY);
         BB.fix();
         BB.bloat(delta);

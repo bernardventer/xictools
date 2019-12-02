@@ -702,17 +702,17 @@ namespace {
     }
 
     bool
-    evFhMinRectSize(const char *vstring, bool set)
+    evFhManhGridCnt(const char *vstring, bool set)
     {
         if (set) {
-            double pmin = FH_MIN_RECT_SIZE_MIN;
-            double pmax = FH_MIN_RECT_SIZE_MAX;
+            double pmin = FH_MIN_MANH_GRID_CNT;
+            double pmax = FH_MAX_MANH_GRID_CNT;
             double d;
             if (str_to_dbl(&d, vstring) && d >= pmin && d <= pmax)
                 ;
             else {
                 Log()->ErrorLogV(mh::Variables,
-                    "Incorrect FhMinRectSize: range %.2f - %.1f.",
+                    "Incorrect FhManhGridCnt: range %.1f - %.1f.",
                     pmin, pmax);
                 return (false);
             }
@@ -842,7 +842,7 @@ cExt::setupVariables()
     vsetup(VA_FhArgs,               S,  evFH);
     vsetup(VA_FhForeg,              B,  evFH);
     vsetup(VA_FhFreq,               S,  evFH);
-    vsetup(VA_FhMinRectSize,        S,  evFhMinRectSize);
+    vsetup(VA_FhManhGridCnt,        S,  evFhManhGridCnt);
     vsetup(VA_FhMonitor,            B,  evFH);
     vsetup(VA_FhPath,               S,  evFH);
     vsetup(VA_FhUnits,              S,  evFH);

@@ -347,7 +347,8 @@ namespace {
 
 bool
 Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
-    const char *mask_lname, double subs_eps, double subs_thickness)
+    const char *mask_lname, double subs_eps, double subs_thickness,
+    int manh_gcnt, int manh_mode)
 {
     // Grab and order the layers to be considered, in the db3_stack
     // list.
@@ -386,6 +387,13 @@ Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
     Zlist::destroy(db3_zlref);
     db3_zlref = zref;
 
+    // Smallest rectangle size to use when approximating non-Manhattan
+    // geometry.  The manh_gcnt is a "volume area" count, the number of
+    // covered grid cells for manh_min squares.
+    //
+    int manh_min =
+        manh_gcnt > 0 ? INTERNAL_UNITS(sqrt(db3_aoi.area()/manh_gcnt)) : 0;
+
     // Next, obtain geometry, and remove layers that are nonexistant
     // in the sdesc layout.  We invert dark-field layers, so that in
     // the sequence, the absence of those layers indicates "everywhere
@@ -396,7 +404,7 @@ Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
     Layer3d *lp = 0, *lnxt;
     for (Layer3d *l = db3_stack; l; l = lnxt) {
         lnxt = l->next();
-        l->extract_geom(sdesc, db3_zlref);
+        l->extract_geom(sdesc, db3_zlref, manh_min, manh_mode);
         unsigned int zc = Ylist::count_zoids(l->uncut());
         if (db3_logfp && zc) {
             fprintf(db3_logfp, "Trapezoid count for %s is %u.\n",
@@ -521,24 +529,13 @@ Ldb3d::init_stack(CDs *sdesc, const BBox *AOI, bool is_cs,
     }
     for (Layer3d *l = db3_stack; l; l = l->next()) {
         if (ary[l->index()]) {
-            if (l->yl3d())
+            if (l->yl3d()) {
                 Errs()->add_error("Warning: Setup failure,\n"
                     "after 3D processing internal inconsistency detected.");
+            }
             l->set_yl3d(new glYlist3d(ary[l->index()]));
             ary[l->index()] = 0;
         }
-    }
-    int leftovr = 0;
-    for (int i = 0; i < db3_groups->num; i++) {
-        if (ary[i])
-            leftovr++;
-    }
-    if (leftovr) {
-        Errs()->add_error(
-            "Warning: Setup failure,\n"
-            "3D processing identified %d additional %s.  Are\n"
-            "dielectric edges causing conductor discontinuity?", leftovr,
-            leftovr == 1 ? "group" : "groups");
     }
     delete [] ary;
     delete g;
@@ -698,7 +695,8 @@ Layer3d::epsrel() const
 // error.
 //
 bool
-Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref)
+Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref, int manh_min,
+    int manh_mode)
 {
     if (!sdesc)
         return (false);
@@ -729,11 +727,14 @@ Layer3d::extract_geom(const CDs *sdesc, const Zlist *zref)
     }
     Zlist::destroy(ztemp);
 
+    zl = Zlist::filter_slivers(zl, 1);
+    if (manh_min > 0.0)
+        zl = Zlist::manhattanize(zl, manh_min, manh_mode);
+
     Ylist::destroy(l3_cut);
     l3_cut = 0;
     Ylist::destroy(l3_uncut);
 
-    zl = Zlist::filter_slivers(zl, 1);
     l3_uncut = zl ? new Ylist(zl) : 0;
     glYlist3d::destroy(l3_yl3d);
     l3_yl3d = 0;
