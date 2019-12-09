@@ -279,6 +279,17 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
         strcat(newLine,tokens);
         strcat(newLine,"\n");
     }
+    else if (strstr(tokens, "E") != NULL) { // using E-xx in component value
+        char vals[20];
+        char pw[4];
+        sscanf( tokens, "%[^E]E%[^\n]\n", vals, pw);     
+        int powers = atoi(pw); 
+        TempPval = atof(vals);
+        TempPval = TempPval * pow(10,(12+powers));
+        gcvt(TempPval,10,tokens); 
+        strcat(newLine,tokens);
+        strcat(newLine,"\n");
+    }
     else if(strstr(INbuffer,Hold)){ 
         strcat(Hold,"=");                   //last caracter must be =
         char *ParLine = strstr(INbuffer,Hold);
@@ -290,11 +301,21 @@ Param_val(char * inLine, char *INbuffer, char *newLine, FILE *OUT,std::vector<st
 
         if(comp == 'L'){ //
             if(strncmp(ParLine,"Scaling",7) == 0){
-                sscanf( ParLine, "%[^=]=%[^e]e%[^*]*", Pname, Pval, Pwr);
+                if(strstr(tokens, "E") != NULL){
+                    sscanf( ParLine, "%[^=]=%[^E]E%[^*]*", Pname, Pval, Pwr);
+                }
+                else{
+                    sscanf( ParLine, "%[^=]=%[^e]e%[^*]*", Pname, Pval, Pwr);
+                }   
             }
             else
             {
-                sscanf( ParLine, "%[^=]=%[^e]e%[^\n]\n", Pname, Pval, Pwr);
+                if(strstr(tokens, "E") != NULL){
+                    sscanf( ParLine, "%[^=]=%[^E]E%[^\n]\n", Pname, Pval, Pwr);
+                }
+                else{
+                    sscanf( ParLine, "%[^=]=%[^e]e%[^\n]\n", Pname, Pval, Pwr);
+                } 
             }
                     
             int power = atoi(Pwr); 
