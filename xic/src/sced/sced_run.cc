@@ -687,8 +687,8 @@ runJoSIMExec(CmdDesc* cmd)
     char *cirJJ = pathlist::expand_path(outJJ, false, true);
     //delete [] sc
 
-    const char *JoSim_file = "josim-cli";
-    const char *JoSim_file_cap = "JoSIM";
+    const char *JoSim_file = "josim";
+    const char *JoSim_file_cap = "josim-cli";
     char *inJoSIM = pathlist::expand_path("/usr/local/bin", false, true);
 
     bool JoSIM_check_linux = pathlist::find_path_file(JoSim_file, "/usr/local/bin",NULL,true);
@@ -698,9 +698,9 @@ runJoSIMExec(CmdDesc* cmd)
     bool inJoSIMlib = false;
     // Choose the location of JoSIM
     if(JoSIM_check_linux)
-        inJoSIM = pathlist::expand_path("/usr/local/bin/josim-cli", false, true);
+        inJoSIM = pathlist::expand_path("/usr/local/bin/josim", false, true);
     else if(JoSIM_check_mac)
-        inJoSIM = pathlist::expand_path("/usr/local/bin/JoSIM", false, true);
+        inJoSIM = pathlist::expand_path("/usr/local/bin/josim-cli", false, true);
     else {
         inJoSIMlib = true;
         // strcpy (jbuf, "");
@@ -733,7 +733,7 @@ runJoSIMExec(CmdDesc* cmd)
     if (!cpid) {
         ParseJosim(filename, cirJJ); // parse josim file
         if(inJoSIMlib){ 
-            execlp("josim-cli","josim-cli","-c", "1", "-o","output", cirJJ, (char *) 0);
+            execlp("josim","josim","-c", "1", "-o","output", cirJJ, (char *) 0);
         }
         else      
             execl(inJoSIM,inJoSIM,"-c", "1", "-o","output", cirJJ, (char *) 0); 
@@ -833,8 +833,8 @@ void runInductExec(CmdDesc* cmd)
         
         // check if inductex is in default location
         const char *inductEXE = "inductex";
-        bool Inductex_check = pathlist::find_path_file(inductEXE, "/utils/inductex/bin",NULL,true);
-        char *Induct = pathlist::expand_path("/utils/inductex/bin/inductex", false, true);
+        bool Inductex_check = pathlist::find_path_file(inductEXE, "/usr/local/bin",NULL,true); // /utils/inductex/bin
+        char *Induct = pathlist::expand_path("/usr/local/bin/inductex", false, true);       // /utils/inductex/bin
 
         bool inIDXlib = false; // look for in PATH
 
